@@ -1,0 +1,38 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "S3Access",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::{{BUCKET_NAME}}",
+        "arn:aws:s3:::{{BUCKET_NAME}}/*"
+      ]
+    },
+    {
+      "Sid": "SQSAccess",
+      "Effect": "Allow",
+      "Action": ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
+      "Resource": "arn:aws:sqs:{{AWS_REGION}}:{{ACCOUNT_ID}}:{{QUEUE_NAME}}"
+    },
+    {
+      "Sid": "BedrockAccess",
+      "Effect": "Allow",
+      "Action": ["bedrock:InvokeModel"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "OpenSearchAccess",
+      "Effect": "Allow",
+      "Action": ["es:ESHttpPost", "es:ESHttpPut", "es:ESHttpGet"],
+      "Resource": "arn:aws:es:{{AWS_REGION}}:{{ACCOUNT_ID}}:domain/{{OPENSEARCH_DOMAIN}}/*"
+    },
+    {
+      "Sid": "TextractAccess",
+      "Effect": "Allow",
+      "Action": ["textract:DetectDocumentText", "textract:AnalyzeDocument"],
+      "Resource": "*"
+    }
+  ]
+}

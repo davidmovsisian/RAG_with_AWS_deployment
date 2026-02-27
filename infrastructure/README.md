@@ -3,13 +3,16 @@
 ## Table of Contents
 1. [Overview](#overview)
 2. [Prerequisites](#prerequisites)
-3. [Quick Start](#quick-start)
-4. [Execution Order](#execution-order)
-5. [Directory Structure](#directory-structure)
-6. [Verification Steps](#verification-steps)
-7. [Cost Estimates](#cost-estimates)
-8. [Troubleshooting](#troubleshooting)
-9. [Cleanup](#cleanup)
+3. [Quick Start (Automated)](#quick-start-automated)
+4. [Quick Start (Manual)](#quick-start-manual)
+5. [Commands](#commands)
+6. [Execution Order](#execution-order)
+7. [Directory Structure](#directory-structure)
+8. [Verification Steps](#verification-steps)
+9. [Cost Estimates](#cost-estimates)
+10. [Troubleshooting](#troubleshooting)
+11. [Windows Users](#windows-users)
+12. [Cleanup](#cleanup)
 
 ---
 
@@ -39,46 +42,68 @@ User Question → EC2 Flask API → Embed (Titan/Bedrock) → Search OpenSearch 
 
 | Requirement | Notes |
 |---|---|
-| AWS CLI v2 | [Installation guide](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) |
-| AWS credentials configured | `aws configure` or IAM role |
-| Bash 4.x+ | Available on Linux/macOS |
-| `jq` utility | `sudo apt install jq` or `brew install jq` |
-| Sufficient IAM permissions | See [aws-setup-guide.md](aws-setup-guide.md) |
+| Python 3.8+ | [python.org](https://www.python.org/downloads/) |
+| boto3 + python-dotenv | `pip install -r requirements.txt` |
+| AWS CLI configured | `aws configure` or IAM role |
+| IAM user with admin permissions | See [aws-setup-guide.md](aws-setup-guide.md) |
 
 ### Verify Prerequisites
 
 ```bash
-# Check AWS CLI version
-aws --version
+# Check Python version
+python --version
 
-# Check configured identity
+# Check AWS identity
 aws sts get-caller-identity
-
-# Check jq
-jq --version
 ```
 
 ---
 
-## Quick Start
+## Quick Start (Automated)
 
 ```bash
-# 1. Copy and configure environment variables
-cp .env.example .env
-# Edit .env with your values (TEAM_NAME is required)
-source .env
+# 1. Install Python dependencies
+pip install -r infrastructure/requirements.txt
 
-# 2. Run scripts in order
-cd scripts
-bash 1-create-s3-bucket.sh
-bash 2-create-sqs-queue.sh
-bash 3-setup-s3-event.sh
-bash 4-create-iam-role.sh
-bash 5-setup-opensearch.sh
-bash 6-launch-ec2.sh
+# 2. Copy and configure environment variables
+cd infrastructure
+cp .env.example .env
+# Edit .env: set TEAM_NAME, AWS_REGION, EC2_KEY_NAME at minimum
+
+# 3. Run automated setup
+python setup.py setup
 ```
 
-> **Note:** OpenSearch domain creation (script 5) takes 10–15 minutes. EC2 bootstrap (script 6) takes 3–5 minutes.
+> **Note:** OpenSearch domain creation (step 5) takes 10–15 minutes. Total setup is ~20 minutes.
+
+---
+
+## Quick Start (Manual)
+
+```bash
+cd infrastructure
+cp .env.example .env
+# Edit .env with your values
+
+cd scripts
+python 1_create_s3_bucket.py
+python 2_create_sqs_queue.py
+python 3_setup_s3_event.py
+python 4_create_iam_role.py
+python 5_setup_opensearch.py
+python 6_launch_ec2.py
+```
+
+---
+
+## Commands
+
+| Command | Description |
+|---|---|
+| `python setup.py setup` | Run all infrastructure steps in order |
+| `python setup.py status` | Show completion status of each step |
+| `python setup.py resume --step N` | Resume setup from step N |
+| `python setup.py cleanup` | Interactively delete all resources |
 
 ---
 
@@ -86,12 +111,12 @@ bash 6-launch-ec2.sh
 
 | Step | Script | Description | Duration |
 |---|---|---|---|
-| 1 | `scripts/1-create-s3-bucket.sh` | Create S3 bucket with encryption and versioning | ~30 sec |
-| 2 | `scripts/2-create-sqs-queue.sh` | Create SQS queue with dead-letter queue | ~30 sec |
-| 3 | `scripts/3-setup-s3-event.sh` | Wire S3 ObjectCreated events to SQS | ~30 sec |
-| 4 | `scripts/4-create-iam-role.sh` | Create IAM role and policies for EC2 | ~1 min |
-| 5 | `scripts/5-setup-opensearch.sh` | Deploy OpenSearch domain | ~15 min |
-| 6 | `scripts/6-launch-ec2.sh` | Launch EC2 instance with user data | ~5 min |
+| 1 | `scripts/1_create_s3_bucket.py` | Create S3 bucket with encryption and versioning | ~30 sec |
+| 2 | `scripts/2_create_sqs_queue.py` | Create SQS queue | ~30 sec |
+| 3 | `scripts/3_setup_s3_event.py` | Wire S3 ObjectCreated events to SQS | ~30 sec |
+| 4 | `scripts/4_create_iam_role.py` | Create IAM role and policies for EC2 | ~1 min |
+| 5 | `scripts/5_setup_opensearch.py` | Deploy OpenSearch domain | ~15 min |
+| 6 | `scripts/6_launch_ec2.py` | Launch EC2 instance with user data | ~5 min |
 
 ---
 
@@ -99,27 +124,38 @@ bash 6-launch-ec2.sh
 
 ```
 infrastructure/
-├── README.md                          # This file
-├── aws-setup-guide.md                 # Detailed AWS setup instructions
-├── .env.example                       # Environment variables template
+├── README.md                               # This file
+├── aws-setup-guide.md                      # Detailed AWS setup instructions
+├── .env.example                            # Environment variables template
+├── requirements.txt                        # Python dependencies
+├── worker.py                               # Orchestration worker class
+├── setup.py                                # CLI interface
 ├── scripts/
-│   ├── 1-create-s3-bucket.sh         # S3 bucket creation
-│   ├── 2-create-sqs-queue.sh         # SQS queue creation
-│   ├── 3-setup-s3-event.sh           # S3 to SQS event wiring
-│   ├── 4-create-iam-role.sh          # IAM role and policies
-│   ├── 5-setup-opensearch.sh         # OpenSearch domain setup
-│   ├── 6-launch-ec2.sh               # EC2 instance launch
-│   └── cleanup.sh                     # Cleanup all resources
+│   ├── 1_create_s3_bucket.py              # S3 bucket creation
+│   ├── 2_create_sqs_queue.py              # SQS queue creation
+│   ├── 3_setup_s3_event.py                # S3 to SQS event wiring
+│   ├── 4_create_iam_role.py               # IAM role and policies
+│   ├── 5_setup_opensearch.py              # OpenSearch domain setup
+│   ├── 6_launch_ec2.py                    # EC2 instance launch
+│   ├── cleanup.py                         # Cleanup all resources (Python)
+│   ├── 1-create-s3-bucket.sh              # S3 bucket creation (Bash)
+│   ├── 2-create-sqs-queue.sh              # SQS queue creation (Bash)
+│   ├── 3-setup-s3-event.sh                # S3 to SQS event wiring (Bash)
+│   ├── 4-create-iam-role.sh               # IAM role and policies (Bash)
+│   ├── 5-setup-opensearch.sh              # OpenSearch domain setup (Bash)
+│   ├── 6-launch-ec2.sh                    # EC2 instance launch (Bash)
+│   └── cleanup.sh                         # Cleanup all resources (Bash)
 ├── policies/
-│   ├── ec2-trust-policy.json         # EC2 trust relationship
-│   ├── s3-policy.json                # S3 permissions
-│   ├── sqs-policy.json               # SQS permissions
-│   ├── bedrock-policy.json           # Bedrock permissions
-│   ├── opensearch-policy.json        # OpenSearch permissions
-│   └── textract-policy.json          # Textract permissions
+│   ├── ec2-trust-policy.json              # EC2 trust relationship
+│   ├── iam-permissions-policy.json        # Combined permissions policy template
+│   ├── s3-policy.json                     # S3 permissions
+│   ├── sqs-policy.json                    # SQS permissions
+│   ├── bedrock-policy.json                # Bedrock permissions
+│   ├── opensearch-policy.json             # OpenSearch permissions
+│   └── textract-policy.json               # Textract permissions
 └── configs/
-    ├── opensearch-config.json        # OpenSearch domain configuration
-    └── ec2-user-data.sh              # EC2 initialization script
+    ├── opensearch-config.json             # OpenSearch domain configuration
+    └── ec2-user-data.sh                   # EC2 initialization script
 ```
 
 ---
@@ -187,18 +223,22 @@ aws configure
 # Enter: AWS Access Key ID, Secret Access Key, Region, Output format
 ```
 
+### boto3 / python-dotenv not installed
+```bash
+pip install -r infrastructure/requirements.txt
+```
+
 ### Bucket already exists in another account
 S3 bucket names are globally unique. Change `TEAM_NAME` in `.env`.
 
 ### OpenSearch domain creation times out
-OpenSearch domains take 10–15 minutes. Check status:
+OpenSearch domains take 10–15 minutes. Resume after the domain is active:
 ```bash
-aws opensearch describe-domain --domain-name rag-class-${TEAM_NAME} \
-  --query 'DomainStatus.Processing'
+python setup.py resume --step 5
 ```
 
 ### EC2 instance fails to start
-Check that the key pair exists:
+Check that the key pair name in `.env` matches an existing key pair:
 ```bash
 aws ec2 describe-key-pairs --key-names ${EC2_KEY_NAME}
 ```
@@ -206,11 +246,46 @@ aws ec2 describe-key-pairs --key-names ${EC2_KEY_NAME}
 ### Permission denied errors
 Ensure your AWS user has `AdministratorAccess` or the specific permissions listed in [aws-setup-guide.md](aws-setup-guide.md).
 
+### Resume after failure
+```bash
+# Check what failed
+python setup.py status
+
+# Resume from a specific step
+python setup.py resume --step 3
+```
+
+---
+
+## Windows Users
+
+The Python scripts work on Windows without any changes.
+
+1. Install Python 3.8+ from [python.org](https://www.python.org/downloads/)
+2. Verify installation: `python --version`
+3. Install dependencies: `pip install -r requirements.txt`
+4. Run setup using Command Prompt or Git Bash:
+   ```
+   python setup.py setup
+   ```
+
 ---
 
 ## Cleanup
 
-To remove all provisioned resources:
+To remove all provisioned resources (Python):
+
+```bash
+python setup.py cleanup
+```
+
+Or using the standalone cleanup script:
+
+```bash
+python scripts/cleanup.py
+```
+
+Or using Bash (Linux/macOS):
 
 ```bash
 bash scripts/cleanup.sh
