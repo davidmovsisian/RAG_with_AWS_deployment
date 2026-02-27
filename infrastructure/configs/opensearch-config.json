@@ -1,0 +1,72 @@
+{
+  "DomainName": "${OPENSEARCH_DOMAIN}",
+  "EngineVersion": "OpenSearch_2.11",
+  "ClusterConfig": {
+    "InstanceType": "${OPENSEARCH_INSTANCE_TYPE}",
+    "InstanceCount": 1,
+    "DedicatedMasterEnabled": false,
+    "ZoneAwarenessEnabled": false,
+    "WarmEnabled": false
+  },
+  "EBSOptions": {
+    "EBSEnabled": true,
+    "VolumeType": "gp3",
+    "VolumeSize": "${OPENSEARCH_VOLUME_SIZE}",
+    "Iops": 3000,
+    "Throughput": 125
+  },
+  "AccessPolicies": "",
+  "SnapshotOptions": {
+    "AutomatedSnapshotStartHour": 0
+  },
+  "EncryptionAtRestOptions": {
+    "Enabled": true
+  },
+  "NodeToNodeEncryptionOptions": {
+    "Enabled": true
+  },
+  "DomainEndpointOptions": {
+    "EnforceHTTPS": true,
+    "TLSSecurityPolicy": "Policy-Min-TLS-1-2-2019-07"
+  },
+  "AdvancedSecurityOptions": {
+    "Enabled": false
+  },
+  "Tags": [
+    { "Key": "Project", "Value": "${PROJECT_NAME}" },
+    { "Key": "Team",    "Value": "${TEAM_NAME}" },
+    { "Key": "Stage",   "Value": "1" },
+    { "Key": "ManagedBy", "Value": "script" }
+  ],
+  "Notes": {
+    "IndexSettings": {
+      "Description": "Recommended index settings for k-NN vector search",
+      "settings": {
+        "index": {
+          "knn": true,
+          "knn.algo_param.ef_search": 512
+        }
+      },
+      "mappings": {
+        "properties": {
+          "embedding": {
+            "type": "knn_vector",
+            "dimension": 1536,
+            "method": {
+              "name": "hnsw",
+              "space_type": "cosinesimil",
+              "engine": "nmslib",
+              "parameters": {
+                "ef_construction": 512,
+                "m": 16
+              }
+            }
+          },
+          "text": { "type": "text" },
+          "source": { "type": "keyword" },
+          "chunk_index": { "type": "integer" }
+        }
+      }
+    }
+  }
+}
