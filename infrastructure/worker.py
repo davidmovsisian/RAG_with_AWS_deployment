@@ -2,15 +2,14 @@
 worker.py: Orchestrate all AWS infrastructure setup scripts automatically.
 Usage: from worker import InfrastructureWorker
 """
-
-import importlib.util
 import json
 import os
 import subprocess
 import sys
 from datetime import datetime, timezone
 from typing import Any, Optional
-
+from dotenv import load_dotenv
+import boto3
 
 SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), 'scripts')
 
@@ -23,9 +22,6 @@ STEPS = [
     (6, '6_launch_ec2.py',          'Launch EC2 instance'),
 ]
 
-REQUIRED_ENV_VARS = ['AWS_REGION', 'TEAM_NAME', 'PROJECT_NAME']
-
-
 class InfrastructureWorker:
     """Orchestrate AWS infrastructure setup scripts."""
 
@@ -36,29 +32,12 @@ class InfrastructureWorker:
         self.state: dict = {}
 
     def validate_prerequisites(self) -> bool:
-        """Check Python version, dependencies, and AWS credentials."""
-        if sys.version_info < (3, 8):
-            print(f"Error: Python 3.8+ required (running {sys.version})")
-            return False
-        print(f"Python {sys.version.split()[0]} OK")
-
-        for module in ('boto3', 'dotenv'):
-            spec = importlib.util.find_spec(module)
-            if spec is None:
-                print(f"Error: {module} is not installed. Run: pip install -r requirements.txt")
-                return False
-        print("Dependencies (boto3, python-dotenv) OK")
-
         if not os.path.exists(self.env_file):
-            print(f"Error: {self.env_file} not found. Copy .env.example to .env and fill in values.")
+            print(f"Error: {self.env_file} not found.")
             return False
-        print(f".env file found: {self.env_file}")
-
         if not self.load_environment():
             return False
-
         try:
-            import boto3
             identity = boto3.client('sts').get_caller_identity()
             print(f"AWS credentials OK - Account: {identity['Account']}, ARN: {identity['Arn']}")
         except Exception as e:
@@ -68,29 +47,11 @@ class InfrastructureWorker:
         return True
 
     def load_environment(self) -> bool:
-        """Load and validate required environment variables from .env."""
         try:
-            from dotenv import load_dotenv
             load_dotenv(self.env_file)
         except Exception as e:
             print(f"Error loading .env: {e}")
             return False
-
-        team_name = os.environ.get('TEAM_NAME', '')
-        project_name = os.environ.get('PROJECT_NAME', 'rag-class')
-
-        for var in REQUIRED_ENV_VARS:
-            if not os.environ.get(var):
-                print(f"Error: {var} is not set in {self.env_file}")
-                return False
-
-        if not os.environ.get('S3_BUCKET'):
-            os.environ['S3_BUCKET'] = f"{project_name}-docs-{team_name}"
-        if not os.environ.get('SQS_QUEUE_NAME'):
-            os.environ['SQS_QUEUE_NAME'] = f"{project_name}-docs-queue-{team_name}"
-
-        print(f"Environment loaded: region={os.environ['AWS_REGION']}, "
-              f"project={project_name}, team={team_name}")
         return True
 
     def execute_step(self, step_number: int) -> bool:

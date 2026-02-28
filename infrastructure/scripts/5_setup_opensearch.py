@@ -56,41 +56,48 @@ def create_opensearch_domain(domain_name: str, role_name: str,
             return False
 
         print(f"Creating OpenSearch domain: {domain_name} (this takes ~10-15 minutes)")
-        try:
-            response = client.create_domain(
-                DomainName=domain_name,
-                EngineVersion='OpenSearch_2.11',
-                ClusterConfig={
-                    'InstanceType': OPENSEARCH_INSTANCE_TYPE,
-                    'InstanceCount': 1,
-                    'DedicatedMasterEnabled': False,
-                    'ZoneAwarenessEnabled': False,
-                },
-                EBSOptions={
-                    'EBSEnabled': True,
-                    'VolumeType': 'gp3',
-                    'VolumeSize': OPENSEARCH_VOLUME_SIZE,
-                },
-                AccessPolicies=access_policy,
-                EncryptionAtRestOptions={'Enabled': True},
-                NodeToNodeEncryptionOptions={'Enabled': True},
-                DomainEndpointOptions={
-                    'EnforceHTTPS': True,
-                    'TLSSecurityPolicy': 'Policy-Min-TLS-1-2-2019-07',
-                },
-                AdvancedSecurityOptions={'Enabled': False},
-                TagList=[
-                    {'Key': 'Project', 'Value': PROJECT_NAME},
-                    {'Key': 'Team', 'Value': TEAM_NAME},
-                    {'Key': 'Stage', 'Value': '1'},
-                    {'Key': 'ManagedBy', 'Value': 'script'},
-                ]
-            )
-            domain_arn = response['DomainStatus']['ARN']
-            print(f"Domain creation initiated. ARN: {domain_arn}")
-        except ClientError as create_err:
-            print(f"Error creating domain: {create_err}")
-            return False
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = client.create_domain(
+                    DomainName=domain_name,
+                    EngineVersion='OpenSearch_2.11',
+                    ClusterConfig={
+                        'InstanceType': OPENSEARCH_INSTANCE_TYPE,
+                        'InstanceCount': 1,
+                        'DedicatedMasterEnabled': False,
+                        'ZoneAwarenessEnabled': False,
+                    },
+                    EBSOptions={
+                        'EBSEnabled': True,
+                        'VolumeType': 'gp3',
+                        'VolumeSize': OPENSEARCH_VOLUME_SIZE,
+                    },
+                    AccessPolicies=access_policy,
+                    EncryptionAtRestOptions={'Enabled': True},
+                    NodeToNodeEncryptionOptions={'Enabled': True},
+                    DomainEndpointOptions={
+                        'EnforceHTTPS': True,
+                        'TLSSecurityPolicy': 'Policy-Min-TLS-1-2-2019-07',
+                    },
+                    AdvancedSecurityOptions={'Enabled': False},
+                    TagList=[
+                        {'Key': 'Project', 'Value': PROJECT_NAME},
+                        {'Key': 'Team', 'Value': TEAM_NAME},
+                        {'Key': 'Stage', 'Value': '1'},
+                        {'Key': 'ManagedBy', 'Value': 'script'},
+                    ]
+                )
+                domain_arn = response['DomainStatus']['ARN']
+                print(f"Domain creation initiated. ARN: {domain_arn}")
+            except ClientError as create_err:
+                if "InvalidTypeException" in str(create_err) and attempt < max_retries - 1:
+                    print(f"IAM Role might not be ready. Retrying in 30s... (Attempt {attempt+1}/{max_retries})")
+                    time.sleep(30)
+                    continue
+                else:
+                    print(f"Error creating domain: {create_err}")
+                    return False
 
         print("Waiting for domain to become active (checking every 30 seconds)...")
         elapsed = 0

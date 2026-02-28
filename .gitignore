@@ -28,3 +28,7 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# aws keys
+*.csv
+*.pem
