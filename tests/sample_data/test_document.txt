@@ -1,0 +1,12 @@
+# Sample Test Document
+
+This is a test document for the RAG system.
+
+## Introduction
+This document contains sample text that can be used to test the S3 upload, read, and processing functionality.
+
+## Content
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+
+## Conclusion
+This is the end of the test document. It should be chunked and embedded for RAG processing.

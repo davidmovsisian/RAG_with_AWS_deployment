@@ -2,10 +2,12 @@
 S3 client for downloading, reading, and moving documents in S3.
 """
 
+import io
 import os
 from typing import Optional
 
 import boto3
+from PyPDF2 import PdfReader
 
 
 class S3Client:
@@ -19,6 +21,24 @@ class S3Client:
         self.processed_prefix = os.getenv("S3_PROCESSED_PREFIX", "processed/")
         self.failed_prefix = os.getenv("S3_FAILED_PREFIX", "failed/")
         print(f"S3Client initialized (bucket={self.bucket_name})")
+
+    def upload_file(self, local_path: str, key: str) -> bool:
+        """Upload a local file to S3.
+
+        Args:
+            local_path: Path to the local file to upload
+            key: S3 object key (destination path in S3)
+
+        Returns:
+            True if upload succeeded, False otherwise
+        """
+        try:
+            self.client.upload_file(local_path, self.bucket_name, key)
+            print(f"Uploaded {local_path} -> s3://{self.bucket_name}/{key}")
+            return True
+        except Exception as e:
+            print(f"Error uploading file {local_path}: {e}")
+            return False
 
     def download_file(self, key: str, local_path: str) -> bool:
         """Download a file from S3 to a local path.
@@ -39,7 +59,9 @@ class S3Client:
             return False
 
     def read_file_content(self, key: str) -> Optional[str]:
-        """Read the content of an S3 file directly as a UTF-8 string.
+        """Read the content of an S3 file and extract text.
+
+        Supports both plain text files and PDFs.
 
         Args:
             key: The S3 object key.
@@ -49,12 +71,68 @@ class S3Client:
         """
         try:
             response = self.client.get_object(Bucket=self.bucket_name, Key=key)
-            content = response["Body"].read().decode("utf-8")
-            print(f"Read {len(content)} characters from s3://{self.bucket_name}/{key}")
+            file_bytes = response["Body"].read()
+
+            # Determine file type from extension
+            _, ext = os.path.splitext(key.lower())
+            file_extension = ext.lstrip(".")
+
+            if file_extension == "pdf":
+                # Extract text from PDF
+                content = self._extract_pdf_text(file_bytes)
+                print(
+                    f"Extracted {len(content)} characters from PDF: "
+                    f"s3://{self.bucket_name}/{key}"
+                )
+            else:
+                # Assume it's a text file
+                try:
+                    content = file_bytes.decode("utf-8")
+                    print(
+                        f"Read {len(content)} characters from "
+                        f"s3://{self.bucket_name}/{key}"
+                    )
+                except UnicodeDecodeError:
+                    print(f"Warning: File {key} is not UTF-8 text or PDF")
+                    return None
+
             return content
+
         except Exception as e:
             print(f"Error reading file {key}: {e}")
             return None
+
+    def _extract_pdf_text(self, pdf_bytes: bytes) -> str:
+        """Extract text content from PDF bytes.
+
+        Args:
+            pdf_bytes: Raw PDF file bytes
+
+        Returns:
+            Extracted text as string
+        """
+        try:
+            # Create a file-like object from bytes
+            pdf_file = io.BytesIO(pdf_bytes)
+
+            # Read PDF
+            pdf_reader = PdfReader(pdf_file)
+
+            # Extract text from all pages
+            text_parts = []
+            for page in pdf_reader.pages:
+                text = page.extract_text()
+                if text.strip():  # Only add non-empty pages
+                    text_parts.append(text)
+
+            full_text = "\n\n".join(text_parts)
+
+            print(f"Extracted text from {len(pdf_reader.pages)} PDF pages")
+            return full_text
+
+        except Exception as e:
+            print(f"Error extracting PDF text: {e}")
+            return ""
 
     def move_to_processed(self, key: str) -> bool:
         """Move a file to the processed/ prefix in S3.
