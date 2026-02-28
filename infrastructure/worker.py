@@ -22,6 +22,8 @@ STEPS = [
     (6, '6_launch_ec2.py',          'Launch EC2 instance'),
 ]
 
+REQUIRED_ENV_VARS = ['AWS_REGION', 'TEAM_NAME', 'PROJECT_NAME']
+
 class InfrastructureWorker:
     """Orchestrate AWS infrastructure setup scripts."""
 
@@ -49,6 +51,12 @@ class InfrastructureWorker:
     def load_environment(self) -> bool:
         try:
             load_dotenv(self.env_file)
+
+            for var in REQUIRED_ENV_VARS:
+                if not os.environ.get(var):
+                    print(f"Error: {var} is not set in {self.env_file}")
+                    return False
+            
         except Exception as e:
             print(f"Error loading .env: {e}")
             return False

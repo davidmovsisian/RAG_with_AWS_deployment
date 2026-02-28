@@ -25,8 +25,8 @@ tiktoken==0.6.0
 
 # Environment & Configuration
 python-dotenv==1.0.1
-pydantic==2.6.1
-pydantic-settings==2.1.0
+pydantic==2.12.5
+pydantic-settings==2.13.1
 
 # Logging & Monitoring
 structlog==24.1.0
