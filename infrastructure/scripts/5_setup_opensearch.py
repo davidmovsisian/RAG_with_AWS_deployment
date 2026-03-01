@@ -34,14 +34,15 @@ def create_opensearch_domain(domain_name: str, role_name: str,
     """Create OpenSearch domain and wait for it to become active."""
     client = boto3.client('opensearch', region_name=region)
 
-    role_arn = f"arn:aws:iam::{account_id}:role/{role_name}"
+    # create access policy to allow the EC2 instance with IAM role to access the OpenSearch domain.
+    role_arn = f"arn:aws:iam::{account_id}:role/{role_name}" #IAM role
     access_policy = json.dumps({
         "Version": "2012-10-17",
         "Statement": [{
             "Effect": "Allow",
-            "Principal": {"AWS": role_arn},
-            "Action": "es:*",
-            "Resource": f"arn:aws:es:{region}:{account_id}:domain/{domain_name}/*",
+            "Principal": {"AWS": role_arn}, #only allow access from EC2 instance with IAM role
+            "Action": "es:*", #full access to OpenSearch for the EC2 instance
+            "Resource": f"arn:aws:es:{region}:{account_id}:domain/{domain_name}/*", #target OpenSearch ARN
         }]
     })
 

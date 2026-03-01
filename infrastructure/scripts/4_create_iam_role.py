@@ -45,6 +45,7 @@ def create_iam_role(role_name: str, profile_name: str, bucket_name: str,
     with open(trust_policy_path, 'r') as f:
         trust_policy = f.read()
 
+    # at first create IAM role with trsust policy that allows EC2 service to assume the role. 
     print(f"Creating IAM role: {role_name}")
     try:
         iam.create_role(
@@ -66,6 +67,7 @@ def create_iam_role(role_name: str, profile_name: str, bucket_name: str,
             print(f"Error creating IAM role: {e}")
             return False
 
+    # Create and attach permissions policy for S3, SQS, and OpenSearch access to the role
     replacements = {
         'BUCKET_NAME': bucket_name,
         'AWS_REGION': region,
@@ -91,6 +93,8 @@ def create_iam_role(role_name: str, profile_name: str, bucket_name: str,
         print(f"Error attaching policy: {e}")
         return False
 
+    # Create instance profile and add role to it. 
+    # will be used to attach the role to the EC2 instance
     print(f"Creating instance profile: {profile_name}")
     try:
         iam.create_instance_profile(InstanceProfileName=profile_name)
