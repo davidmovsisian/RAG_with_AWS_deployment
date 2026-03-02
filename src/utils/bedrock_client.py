@@ -30,14 +30,7 @@ class BedrockClient:
         )
 
     def get_embedding(self, text: str) -> List[float]:
-        """Generate an embedding vector for the given text using Amazon Titan.
-
-        Args:
-            text: The text to embed.
-
-        Returns:
-            A list of floats representing the embedding vector.
-        """
+        """Generate an embedding vector for the given text using Amazon Titan"""
         try:
             body = json.dumps({"inputText": text})
             response = self.client.invoke_model(
@@ -55,14 +48,7 @@ class BedrockClient:
             raise
 
     def generate_answer(self, prompt: str) -> str:
-        """Generate a text response using the Claude LLM model.
-
-        Args:
-            prompt: The prompt to send to the model.
-
-        Returns:
-            The generated text response.
-        """
+        """Generate a text response using the Claude LLM model."""
         try:
             body = json.dumps(
                 {
