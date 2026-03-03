@@ -8,9 +8,9 @@ The best part is that you’re free to choose **any topic you’re passionate ab
 
 ### Tech Stack
 * **Flask API**: Python 3.11+
-* **AWS Bedrock**: 
-    * Claude (chat/completions)
-    * Titan Embeddings (text embeddings)
+* **Google Gemini API**: 
+    * Gemini LLM (chat/completions)
+    * Gemini Embeddings (text embeddings, 768 dimensions)
 * **OpenSearch**: Managed domain as the vector store (k‑NN)
 * **S3**: Document drop‑box (students upload files here)
 * **SQS**: Event fan‑out from S3 to EC2 worker
@@ -26,10 +26,10 @@ The best part is that you’re free to choose **any topic you’re passionate ab
 2.  **EC2 Worker Ingestion**:
     * Downloads object from S3.
     * (Optional) Uses Textract to extract text.
-    * Chunks → Embeds (Titan) → Indexes chunks into OpenSearch k‑NN index.
+    * Chunks → Embeds (Gemini) → Indexes chunks into OpenSearch k‑NN index.
 3.  **User Query**:
     * `User question` → Flask `/ask` → Retrieves top‑k chunks from OpenSearch.
-    * Builds prompt → Calls Claude via Bedrock → Returns grounded answer.
+    * Builds prompt → Calls Gemini LLM → Returns grounded answer.
 
 ---
 
@@ -37,7 +37,7 @@ The best part is that you’re free to choose **any topic you’re passionate ab
 * **S3**: `rag-class-docs-<team>` bucket
 * **SQS**: `rag-class-docs-queue-<team>`
 * **OpenSearch**: Serverless or managed domain
-* **IAM**: EC2 role with Bedrock, S3, SQS, OpenSearch, and Textract permissions
+* **IAM**: EC2 role with S3, SQS, OpenSearch, and Textract permissions
 * **EC2**: Ubuntu 22.04 with Python 3.11, Flask app + worker
 
 ## 2) Project Repo Structure
@@ -45,7 +45,7 @@ The best part is that you’re free to choose **any topic you’re passionate ab
 ├── app.py              # Flask API
 ├── worker.py           # SQS worker
 ├── opensearch_utils.py # OpenSearch logic
-├── bedrock_utils.py    # Bedrock/Claude logic
+├── gemini_client.py    # Gemini API logic
 ├── chunking.py         # Text processing
 ├── s3_utils.py         # S3 interaction
 ├── requirements.txt    # Dependencies
