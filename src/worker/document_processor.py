@@ -5,7 +5,7 @@ Document processor that orchestrates chunking, embedding, and indexing.
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from src.utils.bedrock_client import BedrockClient
+    from src.utils.gemini_client import GeminiClient
     from src.utils.chunking import TextChunker
     from src.utils.opensearch_client import OpenSearchClient
 
@@ -15,18 +15,18 @@ class DocumentProcessor:
 
     def __init__(
         self,
-        bedrock_client: "BedrockClient",
+        gemini_client: "GeminiClient",
         opensearch_client: "OpenSearchClient",
         text_chunker: "TextChunker",
     ):
         """Initialize with utility clients.
 
         Args:
-            bedrock_client: Client for generating embeddings via Amazon Bedrock.
+            gemini_client: Client for generating embeddings via Google Gemini API.
             opensearch_client: Client for indexing documents into OpenSearch.
             text_chunker: Utility for splitting text into chunks.
         """
-        self.bedrock_client = bedrock_client
+        self.gemini_client = gemini_client
         self.opensearch_client = opensearch_client
         self.text_chunker = text_chunker
         print("DocumentProcessor initialized")
@@ -52,7 +52,7 @@ class DocumentProcessor:
             print(f"Indexing {total_chunks} chunks for {filename}")
 
             for chunk_id, chunk in enumerate(chunks):
-                embedding = self.bedrock_client.get_embedding(chunk)
+                embedding = self.gemini_client.get_embedding(chunk)
                 metadata = {
                     "filename": filename,
                     "chunk_id": chunk_id,
