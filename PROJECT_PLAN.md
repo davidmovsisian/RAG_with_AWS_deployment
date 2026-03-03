@@ -1,7 +1,7 @@
 # RAG System with AWS Deployment - Project Plan
 
 ## Overview
-This plan outlines the step-by-step development process for building a Flask-based RAG application using AWS services (Bedrock, OpenSearch, S3, SQS, EC2) with Claude as the AI model.
+This plan outlines the step-by-step development process for building a Flask-based RAG application using AWS services (OpenSearch, S3, SQS, EC2) and Google Gemini API with Gemini as the AI model.
 
 ---
 
@@ -25,7 +25,6 @@ This plan outlines the step-by-step development process for building a Flask-bas
 
 4. **IAM Role Configuration**
    - Create EC2 role with permissions for:
-     - Amazon Bedrock (Claude & Titan)
      - S3 (read/write)
      - SQS (receive/delete messages)
      - OpenSearch (index/search)
@@ -57,7 +56,7 @@ This plan outlines the step-by-step development process for building a Flask-bas
    ├── app.py                  # Flask API
    ├── worker.py               # SQS worker
    ├── opensearch_utils.py     # OpenSearch operations
-   ├── bedrock_utils.py        # Bedrock interactions
+   ├── gemini_client.py        # Gemini API interactions
    ├── chunking.py             # Text chunking logic
    ├── s3_utils.py             # S3 operations
    ├── requirements.txt        # Python dependencies
@@ -85,8 +84,9 @@ This plan outlines the step-by-step development process for building a Flask-bas
    - SQS_QUEUE_URL
    - OS_HOST
    - OS_INDEX
-   - CLAUDE_MODEL_ID
-   - TITAN_EMBED_MODEL
+   - GEMINI_API_KEY
+   - GEMINI_EMBEDDING_MODEL
+   - GEMINI_LLM_MODEL
 
 **Deliverables:**
 - Repository structure created
@@ -99,9 +99,9 @@ This plan outlines the step-by-step development process for building a Flask-bas
 **Goal:** Build reusable utility functions
 
 ### Tasks:
-1. **bedrock_utils.py**
-   - Function to generate embeddings using Titan
-   - Function to call Claude for chat/completions
+1. **gemini_client.py**
+   - Function to generate embeddings using Gemini embedding-001 (768 dimensions)
+   - Function to call Gemini LLM for chat/completions
    - Error handling and retries
    - Proper response parsing
 
@@ -147,7 +147,7 @@ This plan outlines the step-by-step development process for building a Flask-bas
      - Plain text: direct read
      - PDF/Images: optional Textract integration
    - Chunk text using chunking.py
-   - Generate embeddings for each chunk using bedrock_utils
+   - Generate embeddings for each chunk using gemini_client
    - Index chunks into OpenSearch with metadata
 
 3. **Error Handling & Logging**
@@ -170,7 +170,7 @@ This plan outlines the step-by-step development process for building a Flask-bas
 1. **/health Endpoint** (GET)
    - Return 200 OK with service status
    - Check connectivity to OpenSearch
-   - Check Bedrock availability
+   - Check Gemini API availability
    - Return JSON: `{"status": "healthy", "services": {...}}`
 
 2. **/ask Endpoint** (POST)
@@ -178,7 +178,7 @@ This plan outlines the step-by-step development process for building a Flask-bas
    - Generate embedding for the question
    - Retrieve top-k (e.g., 5) relevant chunks from OpenSearch
    - Build context prompt with retrieved chunks
-   - Call Claude via Bedrock with prompt
+   - Call Gemini LLM with prompt
    - Return JSON: `{"answer": "...", "sources": [...]}`
    - Handle errors gracefully (return appropriate status codes)
 
@@ -202,7 +202,7 @@ This plan outlines the step-by-step development process for building a Flask-bas
 1. **scripts/create_index.py**
    - Script to initialize OpenSearch index
    - Configure k-NN settings (engine: nmslib, space_type: cosinesimil)
-   - Set dimension based on Titan embeddings (1536)
+   - Set dimension based on Gemini embeddings (768)
    - Handle index recreation (delete if exists)
    - Verify index creation
 
@@ -312,7 +312,7 @@ This plan outlines the step-by-step development process for building a Flask-bas
 ### Tasks:
 1. **Reranking**
    - Implement cross-encoder reranking after vector search
-   - Use Bedrock or custom model
+   - Use Gemini or custom model
    - Improve answer relevance
 
 2. **Feedback Loop**
@@ -351,17 +351,17 @@ User Upload → S3 Bucket → S3 Event → SQS Queue → EC2 Worker
                                                       ↓
                                             Chunk text
                                                       ↓
-                                            Embed chunks (Titan)
+                                            Embed chunks (Gemini)
                                                       ↓
                                             Index into OpenSearch
 
-User Question → Flask /ask → Embed question (Titan) → Search OpenSearch
+User Question → Flask /ask → Embed question (Gemini) → Search OpenSearch
                                                       ↓
                                             Retrieve top-k chunks
                                                       ↓
                                             Build prompt with context
                                                       ↓
-                                            Call Claude (Bedrock)
+                                            Call Gemini LLM
                                                       ↓
                                             Return grounded answer
 ```
@@ -376,7 +376,7 @@ User Question → Flask /ask → Embed question (Titan) → Search OpenSearch
    - Check trust relationships
 
 2. **Dimension Mismatch**
-   - Ensure OpenSearch index dimension matches Titan output (1536)
+   - Ensure OpenSearch index dimension matches Gemini output (768)
 
 3. **SQS Message Parsing**
    - S3 event format: nested JSON structure
@@ -398,7 +398,7 @@ User Question → Flask /ask → Embed question (Titan) → Search OpenSearch
 - ✅ **Bootstraps correctly**: All dependencies install, services start
 - ✅ **Indexing works**: Documents uploaded to S3 are indexed in OpenSearch
 - ✅ **OpenSearch works**: k-NN search returns relevant chunks
-- ✅ **Claude answers grounded**: Responses based on retrieved context
+- ✅ **Gemini answers grounded**: Responses based on retrieved context
 - ✅ **Optional service**: At least one additional AWS AI service integrated
 
 ---
@@ -415,7 +415,7 @@ User Question → Flask /ask → Embed question (Titan) → Search OpenSearch
 ---
 
 ## References
-- AWS Bedrock Documentation
+- Google Gemini API Documentation
 - OpenSearch Documentation
 - Flask Documentation
 - Boto3 Documentation

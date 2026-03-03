@@ -31,7 +31,6 @@ AmazonSQSFullAccess
 AmazonOpenSearchServiceFullAccess
 AmazonEC2FullAccess
 IAMFullAccess
-AWSBedrockFullAccess
 ```
 
 > **Least privilege note:** For production, scope permissions to specific resources and actions.
@@ -74,10 +73,10 @@ Recommended regions for this project:
 
 | Region | Code | Notes |
 |---|---|---|
-| US East (N. Virginia) | `us-east-1` | Best Bedrock model availability |
+| US East (N. Virginia) | `us-east-1` | Recommended region |
 | US West (Oregon) | `us-west-2` | Alternative with full service support |
 
-> **Important:** Amazon Bedrock (Claude 3, Titan) has limited regional availability. Check the [Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-regions.html) before selecting a region.
+> **Note:** Google Gemini API is accessed via an API key and is not region-specific.
 
 ### Install jq (for Bash scripts only)
 
@@ -294,7 +293,7 @@ aws sqs receive-message --queue-url "${QUEUE_URL}" --wait-time-seconds 5
 
 #### Purpose
 
-Grants EC2 permissions to access S3, SQS, Bedrock, OpenSearch, and Textract.
+Grants EC2 permissions to access S3, SQS, OpenSearch, and Textract.
 
 #### Permissions Summary
 
@@ -302,7 +301,6 @@ Grants EC2 permissions to access S3, SQS, Bedrock, OpenSearch, and Textract.
 |---|---|---|
 | S3 | GetObject, PutObject, ListBucket | Specific bucket |
 | SQS | ReceiveMessage, DeleteMessage, GetQueueAttributes | Specific queue |
-| Bedrock | InvokeModel | All (`*`) |
 | OpenSearch | ESHttpPost, ESHttpPut, ESHttpGet | Specific domain |
 | Textract | DetectDocumentText, AnalyzeDocument | All (`*`) |
 
@@ -380,9 +378,9 @@ sudo tail -f /var/log/user-data.log
 ```
 User Upload → S3 Bucket → S3 Event → SQS Queue → EC2 Worker → OpenSearch
                                                        ↑
-                                               IAM Role (Bedrock, Textract)
+                                               IAM Role (Textract)
 
-User Question → EC2 Flask API → Embed (Titan/Bedrock) → Search OpenSearch → Claude → Answer
+User Question → EC2 Flask API → Embed (Gemini) → Search OpenSearch → Gemini LLM → Answer
 ```
 
 ### Component Descriptions
@@ -394,8 +392,8 @@ User Question → EC2 Flask API → Embed (Titan/Bedrock) → Search OpenSearch 
 | Compute | Amazon EC2 | Runs Flask API and document worker |
 | Identity | AWS IAM | Grants EC2 permissions without credentials |
 | Vector Store | Amazon OpenSearch | Stores and searches document embeddings |
-| Embeddings | Amazon Bedrock (Titan) | Converts text chunks to vectors |
-| LLM | Amazon Bedrock (Claude) | Generates answers from retrieved context |
+| Embeddings | Google Gemini API (embedding-001) | Converts text chunks to vectors |
+| LLM | Google Gemini API (gemini-1.5-flash) | Generates answers from retrieved context |
 | OCR | Amazon Textract | Extracts text from PDFs and images |
 
 ### Data Flow
@@ -404,12 +402,12 @@ User Question → EC2 Flask API → Embed (Titan/Bedrock) → Search OpenSearch 
 2. S3 sends `ObjectCreated` event to SQS
 3. EC2 worker polls SQS, downloads document from S3
 4. Worker uses Textract to extract text from document
-5. Worker splits text into chunks, generates embeddings via Bedrock Titan
+5. Worker splits text into chunks, generates embeddings via Gemini API
 6. Worker indexes chunks + embeddings in OpenSearch
 7. User asks question via Flask API
-8. API generates question embedding via Bedrock Titan
+8. API generates question embedding via Gemini API
 9. API performs k-NN search in OpenSearch, retrieves top-k chunks
-10. API sends chunks + question to Claude via Bedrock for answer generation
+10. API sends chunks + question to Gemini LLM for answer generation
 11. API returns answer to user
 
 ---
@@ -509,6 +507,6 @@ Resources are deleted in reverse order:
 2. **Use t3.nano/micro** for the EC2 instance if only running tests.
 3. **Delete OpenSearch domain** when done to avoid hourly charges.
 4. **Set S3 lifecycle rules** to move old documents to Glacier storage.
-5. **Monitor Bedrock costs** in AWS Cost Explorer – Claude calls can add up.
+5. **Monitor Gemini API costs** in Google AI Studio – API calls can add up.
 6. **Use Reserved Instances** for EC2 if running long-term (up to 72% savings).
 7. **Enable S3 Intelligent-Tiering** for automatic cost optimization.

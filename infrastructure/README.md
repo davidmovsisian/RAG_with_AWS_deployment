@@ -31,9 +31,9 @@ This directory contains all scripts and configuration files needed to provision 
 ```
 User Upload → S3 Bucket → S3 Event → SQS Queue → EC2 Worker → OpenSearch
                                                        ↑
-                                               IAM Role (Bedrock, Textract)
+                                               IAM Role (Textract)
 
-User Question → EC2 Flask API → Embed (Titan/Bedrock) → Search OpenSearch → Claude (Bedrock) → Answer
+User Question → EC2 Flask API → Embed (Gemini) → Search OpenSearch → Gemini LLM → Answer
 ```
 
 ---
@@ -207,8 +207,7 @@ aws ec2 describe-instances \
 | IAM | Role and policies | Free |
 | OpenSearch | t3.small.search, 10 GB | ~$25/month |
 | EC2 | t3.small, on-demand | ~$15/month |
-| Bedrock (Titan) | Per API call | ~$0.10/1M tokens |
-| Bedrock (Claude) | Per API call | ~$3–$15/1M tokens |
+| Gemini API | Per API call | Free tier available |
 
 > **Total estimated cost:** ~$40–50/month for a development environment.
 > Stop/terminate resources when not in use to minimize costs.

@@ -8,7 +8,7 @@ This system uses:
 - **AWS S3**: Document storage
 - **AWS SQS**: Message queue for document processing
 - **AWS OpenSearch**: Vector database for document embeddings
-- **AWS Bedrock**: LLM and embedding models
+- **Google Gemini API**: LLM and embedding models
 - **EC2**: Hosting Flask API and background worker
 
 ## Project Structure

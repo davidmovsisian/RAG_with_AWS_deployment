@@ -56,7 +56,7 @@ class OpenSearchClient:
             )
             print("OpenSearchClient initialized with AWS IAM auth")
 
-    def create_index(self, dimension: int = 1536) -> bool:
+    def create_index(self, dimension: int = 768) -> bool:
         """Create a KNN-enabled index with HNSW algorithm.
 
         Args:

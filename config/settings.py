@@ -30,17 +30,18 @@ class Settings(BaseSettings):
     opensearch_username: Optional[str] = Field(default=None, env="OPENSEARCH_USERNAME")
     opensearch_password: Optional[str] = Field(default=None, env="OPENSEARCH_PASSWORD")
 
-    # Bedrock Configuration
-    bedrock_embedding_model_id: str = Field(
-        default="amazon.titan-embed-text-v1",
-        env="BEDROCK_EMBEDDING_MODEL_ID"
+    # Gemini Configuration
+    gemini_api_key: str = Field(..., env="GEMINI_API_KEY")
+    gemini_embedding_model: str = Field(
+        default="models/embedding-001",
+        env="GEMINI_EMBEDDING_MODEL"
     )
-    bedrock_llm_model_id: str = Field(
-        default="anthropic.claude-3-sonnet-20240229-v1:0",
-        env="BEDROCK_LLM_MODEL_ID"
+    gemini_llm_model: str = Field(
+        default="gemini-1.5-flash",
+        env="GEMINI_LLM_MODEL"
     )
-    bedrock_max_tokens: int = Field(default=4096, env="BEDROCK_MAX_TOKENS")
-    bedrock_temperature: float = Field(default=0.7, env="BEDROCK_TEMPERATURE")
+    gemini_max_tokens: int = Field(default=4096, env="GEMINI_MAX_TOKENS")
+    gemini_temperature: float = Field(default=0.7, env="GEMINI_TEMPERATURE")
 
     # Chunking Configuration
     chunk_size: int = Field(default=1000, env="CHUNK_SIZE")
