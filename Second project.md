@@ -1,6 +1,6 @@
 # Second Project: RAG Implementation
 
-This project is your chance to bring **Retrieval-Augmented Generation (RAG)** to life in a practical way. You’ll build a Flask application that connects to AWS services like Bedrock, OpenSearch, and S3, and use Claude as your AI model. 
+This project is your chance to bring **Retrieval-Augmented Generation (RAG)** to life in a practical way. You’ll build a Flask application that connects to AWS services like OpenSearch and S3, and use Google Gemini as your AI model. 
 
 The best part is that you’re free to choose **any topic you’re passionate about**—from history, sports, or movies, to finance or healthcare—so the project feels like your own. Along the way, you’ll also design a simple **UI/UX** layer for your app, because it’s not just about making the backend work, but also about creating a product that’s easy and enjoyable to use. For your dataset, you can grab free, ready-to-use material from **Kaggle**, which offers thousands of datasets to experiment with.
 
