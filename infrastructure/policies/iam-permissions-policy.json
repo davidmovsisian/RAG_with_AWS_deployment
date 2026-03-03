@@ -17,12 +17,6 @@
       "Resource": "arn:aws:sqs:{{AWS_REGION}}:{{ACCOUNT_ID}}:{{QUEUE_NAME}}"
     },
     {
-      "Sid": "BedrockAccess",
-      "Effect": "Allow",
-      "Action": ["bedrock:InvokeModel"],
-      "Resource": "*"
-    },
-    {
       "Sid": "OpenSearchAccess",
       "Effect": "Allow",
       "Action": ["es:ESHttpPost", "es:ESHttpPut", "es:ESHttpGet"],

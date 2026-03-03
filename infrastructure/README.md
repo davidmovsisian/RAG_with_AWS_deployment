@@ -150,7 +150,6 @@ infrastructure/
 │   ├── iam-permissions-policy.json        # Combined permissions policy template
 │   ├── s3-policy.json                     # S3 permissions
 │   ├── sqs-policy.json                    # SQS permissions
-│   ├── bedrock-policy.json                # Bedrock permissions
 │   ├── opensearch-policy.json             # OpenSearch permissions
 │   └── textract-policy.json               # Textract permissions
 └── configs/

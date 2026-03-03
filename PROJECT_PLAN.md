@@ -330,7 +330,7 @@ This plan outlines the step-by-step development process for building a Flask-bas
    - Set TTL appropriately
 
 5. **Batch Embedding**
-   - Process multiple chunks in single Bedrock call
+   - Process multiple chunks in single Gemini API call
    - Reduce API calls and latency
 
 **Deliverables:**
