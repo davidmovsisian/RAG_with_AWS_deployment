@@ -8,14 +8,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Set working directory
 WORKDIR /app
 
-# Copy requirements first (for better caching)
+# Copy requirements
 COPY requirements.txt .
 
-# Install Python dependencies
+# Install requirements
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code 
 COPY . .
 
 # Run the worker using the direct file path
-CMD ["python", "src/worker/run_worker.py"]
+CMD ["python", "worker/run_worker.py"]
