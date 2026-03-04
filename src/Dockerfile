@@ -3,10 +3,10 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/rag_app
 
 # Set working directory
-WORKDIR /app
+WORKDIR /rag_app
 
 # Copy requirements
 COPY requirements.txt .
