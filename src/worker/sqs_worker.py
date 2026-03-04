@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING, Optional
 import boto3
 
 if TYPE_CHECKING:
-    from src.utils.s3_client import S3Client
-    from src.worker.document_processor import DocumentProcessor
+    from utils.s3_client import S3Client
+    from worker.document_processor import DocumentProcessor
 
 
 class SQSWorker:

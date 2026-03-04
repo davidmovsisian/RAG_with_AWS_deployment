@@ -5,9 +5,9 @@ Document processor that orchestrates chunking, embedding, and indexing.
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from src.utils.gemini_client import GeminiClient
-    from src.utils.chunking import TextChunker
-    from src.utils.opensearch_client import OpenSearchClient
+    from utils.gemini_client import GeminiClient
+    from utils.chunking import TextChunker
+    from utils.opensearch_client import OpenSearchClient
 
 
 class DocumentProcessor:

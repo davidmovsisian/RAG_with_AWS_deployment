@@ -1,8 +1,5 @@
 """
 Entry point for the SQS worker process.
-
-Run with:
-    python src/worker/run_worker.py
 """
 
 import os
@@ -17,12 +14,12 @@ load_dotenv()
 
 import boto3
 
-from src.utils.gemini_client import GeminiClient
-from src.utils.chunking import TextChunker
-from src.utils.opensearch_client import OpenSearchClient
-from src.utils.s3_client import S3Client
-from src.worker.document_processor import DocumentProcessor
-from src.worker.sqs_worker import SQSWorker
+from utils.gemini_client import GeminiClient
+from utils.chunking import TextChunker
+from utils.opensearch_client import OpenSearchClient
+from utils.s3_client import S3Client
+from worker.document_processor import DocumentProcessor
+from worker.sqs_worker import SQSWorker
 
 
 def main() -> None:
