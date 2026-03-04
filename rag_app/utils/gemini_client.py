@@ -1,19 +1,9 @@
-"""
-Gemini client for interacting with Google Gemini API for embeddings and LLM.
-"""
-
 import os
 from typing import List
-
 import google.generativeai as genai
-from tenacity import retry, stop_after_attempt, wait_exponential
-
 
 class GeminiClient:
-    """Client for Google Gemini API (embeddings and text generation)."""
-
     def __init__(self):
-        """Initialize Gemini client with API key from environment."""
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable is required")
@@ -30,9 +20,7 @@ class GeminiClient:
             f"llm={self.llm_model})"
         )
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def get_embedding(self, text: str) -> List[float]:
-        """Generate an embedding vector using Gemini embedding model."""
         try:
             result = genai.embed_content(
                 model=self.embedding_model,
@@ -46,9 +34,7 @@ class GeminiClient:
             print(f"Error generating embedding: {e}")
             raise
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def generate_answer(self, prompt: str) -> str:
-        """Generate a text response using Gemini LLM."""
         try:
             model = genai.GenerativeModel(
                 model_name=self.llm_model,

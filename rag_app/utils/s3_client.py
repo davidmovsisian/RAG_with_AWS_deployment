@@ -5,10 +5,7 @@ S3 client for downloading, reading, and moving documents in S3.
 import io
 import os
 from typing import Optional
-
 import boto3
-from PyPDF2 import PdfReader
-
 
 class S3Client:
     """Client for Amazon S3 file operations."""
@@ -44,7 +41,7 @@ class S3Client:
                     f"s3://{self.bucket_name}/{key}"
                 )
             except UnicodeDecodeError:
-                print(f"Warning: File {key} is not UTF-8 text or PDF")
+                print(f"Warning: File {key} is not text")
                 return None
 
             return content

@@ -2,14 +2,10 @@
 Entry point for the SQS worker process.
 
 Run with:
-    python src/worker/run_worker.py
+    python -m rag_app.worker.run_worker
 """
 
 import os
-import sys
-
-# Add project root to Python path so src.* imports work
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from dotenv import load_dotenv
 
@@ -17,12 +13,12 @@ load_dotenv()
 
 import boto3
 
-from src.utils.gemini_client import GeminiClient
-from src.utils.chunking import TextChunker
-from src.utils.opensearch_client import OpenSearchClient
-from src.utils.s3_client import S3Client
-from src.worker.document_processor import DocumentProcessor
-from src.worker.sqs_worker import SQSWorker
+from rag_app.utils.gemini_client import GeminiClient
+from rag_app.utils.chunking import TextChunker
+from rag_app.utils.opensearch_client import OpenSearchClient
+from rag_app.utils.s3_client import S3Client
+from rag_app.worker.document_processor import DocumentProcessor
+from rag_app.worker.sqs_worker import SQSWorker
 
 
 def main() -> None:

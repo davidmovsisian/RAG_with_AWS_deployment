@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from src.utils.s3_client import S3Client
+from rag_app.utils.s3_client import S3Client
 
 
 USAGE = """

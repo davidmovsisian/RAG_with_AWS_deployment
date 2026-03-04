@@ -76,7 +76,7 @@
 # # 6. Create application directory structure
 # # -----------------------------------------------------------------------------
 # echo "[6/7] Creating application directory structure ..."
-# APP_DIR="/home/ubuntu/rag-app"
+# APP_DIR="/home/ubuntu/rag_app"
 # mkdir -p "${APP_DIR}"
 # mkdir -p "${APP_DIR}/data"
 # mkdir -p "${APP_DIR}/logs"
@@ -119,8 +119,8 @@ apt-get update && apt-get install -yq docker-ce docker-ce-cli containerd.io dock
 systemctl enable --now docker
 usermod -aG docker ubuntu
 
-mkdir -p /home/ubuntu/rag-app/{data,logs}
-chown -R ubuntu:ubuntu /home/ubuntu/rag-app
+mkdir -p /home/ubuntu/rag_app/{data,logs}
+chown -R ubuntu:ubuntu /home/ubuntu/rag_app
 
 # 7. Final Verification
 docker info && docker compose version
