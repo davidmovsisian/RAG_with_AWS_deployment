@@ -3,3 +3,5 @@ python-dotenv
 google-generativeai
 opensearch-py
 requests-aws4auth
+google-genai
+numpy

@@ -1,14 +1,13 @@
 import os
 from typing import List
-from xmlrpc import client
 from google import genai
 from google.genai import types
 import numpy as np
 
 class GeminiClient:
     def __init__(self):
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key:
+        _api_key = os.environ.get("GEMINI_API_KEY")
+        if not _api_key:
             raise ValueError("GEMINI_API_KEY environment variable is required")
 
         self.embedding_model = os.getenv("GEMINI_EMBEDDING_MODEL", "models/embedding-001")
@@ -16,7 +15,7 @@ class GeminiClient:
         self.max_tokens = int(os.getenv("GEMINI_MAX_TOKENS", "4096"))
         self.temperature = float(os.getenv("GEMINI_TEMPERATURE", "0.7"))
 
-        self.client = genai.Client(api_key)
+        self.client = genai.Client(api_key=_api_key)
         print(
             f"GeminiClient initialized (embedding={self.embedding_model}, "
             f"llm={self.llm_model})"
