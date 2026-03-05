@@ -34,6 +34,7 @@ def main() -> None:
     opensearch_client = OpenSearchClient()
     text_chunker = TextChunker()
 
+    opensearch_client.create_index()
     document_processor = DocumentProcessor(gemini_client, opensearch_client, text_chunker)
     worker = SQSWorker(sqs_client, s3_client, document_processor)
 
