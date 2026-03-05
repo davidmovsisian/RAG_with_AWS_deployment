@@ -10,8 +10,8 @@ class GeminiClient:
         if not _api_key:
             raise ValueError("GEMINI_API_KEY environment variable is required")
 
-        self.embedding_model = os.getenv("GEMINI_EMBEDDING_MODEL", "models/embedding-001")
-        self.llm_model = os.getenv("GEMINI_LLM_MODEL", "gemini-1.5-flash")
+        self.embedding_model = os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001")
+        self.llm_model = os.getenv("GEMINI_LLM_MODEL", "gemini-2.5-flash")
         self.max_tokens = int(os.getenv("GEMINI_MAX_TOKENS", "4096"))
         self.temperature = float(os.getenv("GEMINI_TEMPERATURE", "0.7"))
 
@@ -21,7 +21,7 @@ class GeminiClient:
             f"llm={self.llm_model})"
         )
 
-    def get_embeddings(self, text: str) -> List[float]:
+    def get_embedding(self, text: str) -> List[float]:
         try:
             result = self.client.models.embed_content(
                 model=self.embedding_model,

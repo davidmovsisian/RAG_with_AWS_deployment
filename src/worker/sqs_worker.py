@@ -89,12 +89,13 @@ class SQSWorker:
         try:
             body = json.loads(message["Body"])
             s3_key = self._extract_s3_key(body)
+            print(f"Processing S3 object: {s3_key}")
             if not s3_key:
                 print(f"Could not extract S3 key from message: {body}")
                 self._delete_message(receipt_handle)
                 return
 
-            print(f"Processing S3 object: {s3_key}")
+            # print(f"Processing S3 object: {s3_key}")
             content = self.s3_client.read_file_content(s3_key)
             if content is None:
                 print(f"Failed to read content for {s3_key}, moving to failed/")

@@ -31,6 +31,7 @@ class S3Client:
     def read_file_content(self, key: str) -> Optional[str]:
         """Read the content of an S3 file and extract text."""
         try:
+            print(f"Reading S3 object: {key} from bucket: {self.bucket_name}")
             response = self.client.get_object(Bucket=self.bucket_name, Key=key)
             file_bytes = response["Body"].read()
             try:
