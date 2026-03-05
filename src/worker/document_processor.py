@@ -1,14 +1,9 @@
-"""
-Document processor that orchestrates chunking, embedding, and indexing.
-"""
-
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from utils.gemini_client import GeminiClient
     from utils.chunking import TextChunker
     from utils.opensearch_client import OpenSearchClient
-
 
 class DocumentProcessor:
     """Orchestrates chunking, embedding, and indexing of documents into OpenSearch."""
@@ -19,28 +14,13 @@ class DocumentProcessor:
         opensearch_client: "OpenSearchClient",
         text_chunker: "TextChunker",
     ):
-        """Initialize with utility clients.
-
-        Args:
-            gemini_client: Client for generating embeddings via Google Gemini API.
-            opensearch_client: Client for indexing documents into OpenSearch.
-            text_chunker: Utility for splitting text into chunks.
-        """
         self.gemini_client = gemini_client
         self.opensearch_client = opensearch_client
         self.text_chunker = text_chunker
         print("DocumentProcessor initialized")
 
     def process_document(self, content: str, filename: str) -> bool:
-        """Chunk, embed, and index a document.
-
-        Args:
-            content: The raw text content of the document.
-            filename: The original filename, stored as metadata.
-
-        Returns:
-            True if all chunks were successfully indexed, False otherwise.
-        """
+        """Chunk, embed, and index a document."""
         try:
             print(f"Processing document: {filename}")
             chunks = self.text_chunker.chunk_text(content)
