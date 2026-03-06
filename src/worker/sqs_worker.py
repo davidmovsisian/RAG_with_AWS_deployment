@@ -6,13 +6,12 @@ import json
 import os
 import time
 from typing import TYPE_CHECKING, Optional
-
 import boto3
+import threading
 
 if TYPE_CHECKING:
     from utils.s3_client import S3Client
     from worker.document_processor import DocumentProcessor
-
 
 class SQSWorker:
     """Polls an SQS queue for S3 upload events and processes documents."""
@@ -31,44 +30,45 @@ class SQSWorker:
         self.poll_interval = int(os.getenv("WORKER_POLL_INTERVAL", "5"))
         self.max_messages = int(os.getenv("WORKER_MAX_MESSAGES", "10"))
         self.visibility_timeout = int(os.getenv("WORKER_VISIBILITY_TIMEOUT", "300"))
-
+        
+        self.stop_event = threading.Event()
+        
         print(
             f"SQSWorker initialized (queue={self.queue_url}, "
             f"poll_interval={self.poll_interval}s, max_messages={self.max_messages})"
         )
 
+    def stop(self):
+        self.stop_event.set()
+
     def poll_and_process(self) -> None:
         """Poll the SQS queue in a loop and process incoming document messages."""
         print("Starting SQS worker polling loop...")
-        try:
-            while True:
-                try:
-                    response = self.sqs_client.receive_message(
-                        QueueUrl=self.queue_url,
-                        MaxNumberOfMessages=self.max_messages,
-                        WaitTimeSeconds=20,
-                        VisibilityTimeout=self.visibility_timeout,
-                    )
-                    messages = response.get("Messages", [])
-                    if not messages:
-                        print("No messages received, waiting...")
-                        time.sleep(self.poll_interval)
-                        continue
 
-                    print(f"Received {len(messages)} message(s)")
-                    for message in messages:
-                        self._process_message(message)
-                except KeyboardInterrupt:
-                    raise
-                except Exception as e:
-                    print(f"Error during polling: {e}")
+        while not self.stop_event.is_set():
+            try:
+                response = self.sqs_client.receive_message(
+                    QueueUrl=self.queue_url,
+                    MaxNumberOfMessages=self.max_messages,
+                    WaitTimeSeconds=20,
+                    VisibilityTimeout=self.visibility_timeout,
+                )
+                messages = response.get("Messages", [])
+                if not messages:
+                    print("No messages received, waiting...")
                     time.sleep(self.poll_interval)
-        except KeyboardInterrupt:
-            print("Worker stopped by user (KeyboardInterrupt)")
+                    continue
+
+                print(f"Received {len(messages)} message(s)")
+                for message in messages:
+                    self._process_message(message)
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                print(f"Error during polling: {e}")
+                time.sleep(self.poll_interval)
 
     def _process_message(self, message: dict) -> None:
-        """Process a single SQS message."""
-        
         receipt_handle = message["ReceiptHandle"]
         try:
             body = json.loads(message["Body"])
@@ -96,7 +96,6 @@ class SQSWorker:
             print(f"Unhandled error processing message (receipt_handle={receipt_handle}): {e}")
 
     def _extract_s3_key(self, event: dict) -> Optional[str]:
-        """Extract the S3 object key from an S3 event notification."""
         try:
             records = event.get("Records")
             if records:
@@ -107,7 +106,6 @@ class SQSWorker:
             return None
 
     def _delete_message(self, receipt_handle: str) -> None:
-        """Delete a message from the SQS queue."""
         try:
             self.sqs_client.delete_message(
                 QueueUrl=self.queue_url,

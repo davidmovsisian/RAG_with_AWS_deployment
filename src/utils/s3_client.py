@@ -14,15 +14,13 @@ class S3Client:
         self.bucket_name = os.getenv("S3_BUCKET_NAME", "")
         print(f"S3Client initialized (bucket={self.bucket_name})")
 
-    def upload_file(self, local_path: str, key: str) -> bool:
-        """Upload a local file to S3."""
+    def upload_file(self, content: str, key: str) -> bool:
         try:
-            self.client.upload_file(local_path, self.bucket_name, key)
-            print(f"Uploaded {local_path} -> s3://{self.bucket_name}/{key}")
+            self.client.put_object(Bucket=self.bucket_name, Key=key, Body=content)
+            print(f"Uploaded content -> s3://{self.bucket_name}/{key}")
             return True
         except Exception as e:
-            print(f"Error uploading file {local_path}: {e}")
-            return False
+            raise
 
     def read_file_content(self, key: str) -> Optional[str]:
         """Read the content of an S3 file and extract text."""
