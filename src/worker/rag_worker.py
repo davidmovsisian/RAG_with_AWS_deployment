@@ -1,7 +1,7 @@
 import os
 import threading
 import boto3
-from flask import FileStorage, jsonify
+from flask import FileStorage
 from utils.gemini_client import GeminiClient
 from utils.opensearch_client import OpenSearchClient
 from utils.s3_client import S3Client
@@ -12,6 +12,7 @@ from worker.sqs_worker import SQSWorker
 class RagWorker:
     """
     Manages all clients and services for the RAG system.
+    Starts the SQS worker in a separate thread
     """
     def __init__(self):
         print("Initializing Worker...")
