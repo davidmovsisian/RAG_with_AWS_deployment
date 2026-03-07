@@ -14,11 +14,10 @@ class S3Client:
         self.bucket_name = os.getenv("S3_BUCKET_NAME", "")
         print(f"S3Client initialized (bucket={self.bucket_name})")
 
-    def upload_file(self, content: str, key: str) -> bool:
+    def upload_file(self, content: str, key: str):
         try:
             self.client.put_object(Bucket=self.bucket_name, Key=key, Body=content)
             print(f"Uploaded content -> s3://{self.bucket_name}/{key}")
-            return True
         except Exception as e:
             raise
 

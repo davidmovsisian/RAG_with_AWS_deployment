@@ -48,19 +48,16 @@ class Worker:
     def upload_file(self, file:FileStorage) -> bool:
         try:
             content = file.read()
-            success = self.s3_client.upload_file(content, key=file.filename)
+            self.s3_client.upload_file(content, key=file.filename)
         except Exception as e:
-            print(f"Error uploading file {file.filename}: {e}")
-            return False
-        return success
-    
+            raise
+        
     def ask_question(self, question:str, top_k:int=5) ->str:
         try:
             question_embedding = self.gemini_client.get_embedding(question)
             chunks = self.opensearch_client.search(question_embedding, top_k=top_k)
             if not chunks:
                 return jsonify({"error": "No documents indexed. Upload documents first."}), 400
-            
             context_parts = []         
             for i, result in enumerate(chunks):
                 context_parts.append(f"[{i+1}] {result['content']}")
@@ -68,8 +65,7 @@ class Worker:
             answer = self.gemini_client.generate_answer(context, question)
             return jsonify({"question": question, "top_k": top_k, "context": chunks, "answer": answer})
         except Exception as e:
-            print(f"Error processing question '{question[0:30]}': {e}")
-            return jsonify({"error": "Error processing question"}), 500
+            raise
         
     def health_check(self) -> dict:
         status = {
