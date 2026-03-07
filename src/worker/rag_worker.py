@@ -1,8 +1,3 @@
-"""
-Worker class that manages all clients and services for the RAG system.
-Can be used by both the SQS worker and the Flask API.
-"""
-
 import os
 import threading
 import boto3
@@ -51,7 +46,7 @@ class Worker:
             self.s3_client.upload_file(content, key=file.filename)
         except Exception as e:
             raise
-        
+
     def ask_question(self, question:str, top_k:int=5) ->str:
         try:
             question_embedding = self.gemini_client.get_embedding(question)
