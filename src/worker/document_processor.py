@@ -6,8 +6,6 @@ if TYPE_CHECKING:
     from utils.opensearch_client import OpenSearchClient
 
 class DocumentProcessor:
-    """Orchestrates chunking, embedding, and indexing of documents into OpenSearch."""
-
     def __init__(
         self,
         gemini_client: "GeminiClient",
@@ -20,29 +18,24 @@ class DocumentProcessor:
         print("DocumentProcessor initialized")
 
     def process_document(self, content: str, filename: str) -> bool:
-        """Chunk, embed, and index a document."""
-        try:
-            print(f"Processing document: {filename}")
-            chunks = self.text_chunker.chunk_text(content)
-            if not chunks:
-                print(f"No chunks produced for {filename}")
-                return False
-
-            total_chunks = len(chunks)
-            print(f"Indexing {total_chunks} chunks for {filename}")
-
-            for chunk_id, chunk in enumerate(chunks):
-                embedding = self.gemini_client.get_embedding(chunk)
-                metadata = {
-                    "filename": filename,
-                    "chunk_id": chunk_id,
-                    "total_chunks": total_chunks,
-                }
-                self.opensearch_client.index_document(chunk, embedding, metadata)
-                print(f"Indexed chunk {chunk_id + 1}/{total_chunks} for {filename}")
-
-            print(f"Successfully processed {filename} ({total_chunks} chunks)")
-            return True
-        except Exception as e:
-            print(f"Error processing document {filename}: {e}")
+        print(f"Processing document: {filename}")
+        chunks = self.text_chunker.chunk_text(content)
+        if not chunks:
+            print(f"No chunks produced for {filename}")
             return False
+
+        total_chunks = len(chunks)
+        print(f"Indexing {total_chunks} chunks for {filename}")
+
+        for chunk_id, chunk in enumerate(chunks):
+            embedding = self.gemini_client.get_embedding(chunk)
+            metadata = {
+                "filename": filename,
+                "chunk_id": chunk_id,
+                "total_chunks": total_chunks,
+            }
+            self.opensearch_client.index_document(chunk, embedding, metadata)
+            print(f"Indexed chunk {chunk_id + 1}/{total_chunks} for {filename}")
+
+        print(f"Successfully processed {filename} ({total_chunks} chunks)")
+        return True

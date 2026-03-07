@@ -1,7 +1,3 @@
-"""
-OpenSearch client for vector storage and similarity search.
-"""
-
 import os
 from datetime import datetime
 from typing import Any, Dict, List
@@ -11,10 +7,7 @@ from requests_aws4auth import AWS4Auth
 
 
 class OpenSearchClient:
-    """Client for OpenSearch vector search operations."""
-
     def __init__(self):
-        """Initialize OpenSearch client with support for basic auth or AWS IAM auth."""
         endpoint = os.getenv("OPENSEARCH_ENDPOINT", "")
         self.index_name = os.getenv("OPENSEARCH_INDEX_NAME", "rag-documents")
         username = os.getenv("OPENSEARCH_USERNAME")
@@ -57,14 +50,7 @@ class OpenSearchClient:
             print("OpenSearchClient initialized with AWS IAM auth")
 
     def create_index(self, dimension: int = 768) -> bool:
-        """Create a KNN-enabled index with HNSW algorithm.
-
-        Args:
-            dimension: The dimension of the embedding vectors.
-
-        Returns:
-            True if the index was created successfully, False otherwise.
-        """
+        """Create a KNN-enabled index with HNSW algorithm."""
         try:
             if self.client.indices.exists(index=self.index_name):
                 print(f"Index '{self.index_name}' already exists")
@@ -90,7 +76,6 @@ class OpenSearchClient:
                                 "filename": {"type": "keyword"},
                                 "chunk_id": {"type": "integer"},
                                 "total_chunks": {"type": "integer"},
-                                "timestamp": {"type": "date"},
                             }
                         },
                     }
@@ -103,47 +88,21 @@ class OpenSearchClient:
             print(f"Error creating index: {e}")
             return False
 
-    def index_document(
-        self, content: str, embedding: List[float], metadata: Dict[str, Any]
-    ) -> str:
-        """Index a document chunk with its embedding vector.
+    def index_document(self, content: str, embedding: List[float], metadata: Dict[str, Any]) -> str:
+        """Index a document chunk with its embedding vector and metadata dict with filename, chunk_id, total_chunks."""
+        document = {
+            "content": content,
+            "embedding": embedding,
+            "metadata": metadata,
+        }
+        response = self.client.index(index=self.index_name, body=document)
+        doc_id = response["_id"]
+        print(f"Indexed document with id={doc_id}")
+        return doc_id
 
-        Args:
-            content: The text content of the chunk.
-            embedding: The embedding vector for the chunk.
-            metadata: Metadata dict with filename, chunk_id, total_chunks, etc.
 
-        Returns:
-            The document ID assigned by OpenSearch.
-        """
-        try:
-            if "timestamp" not in metadata:
-                metadata["timestamp"] = datetime.utcnow().isoformat()
-            document = {
-                "content": content,
-                "embedding": embedding,
-                "metadata": metadata,
-            }
-            response = self.client.index(index=self.index_name, body=document)
-            doc_id = response["_id"]
-            print(f"Indexed document with id={doc_id}")
-            return doc_id
-        except Exception as e:
-            print(f"Error indexing document: {e}")
-            raise
-
-    def search(
-        self, query_embedding: List[float], top_k: int = 5
-    ) -> List[Dict[str, Any]]:
-        """Perform KNN vector similarity search.
-
-        Args:
-            query_embedding: The embedding vector of the query.
-            top_k: Number of top results to return.
-
-        Returns:
-            List of matching documents with content and metadata.
-        """
+    def search(self, query_embedding: List[float], top_k: int = 5) -> List[Dict[str, Any]]:
+        """Perform KNN vector similarity search."""
         try:
             query = {
                 "size": top_k,

@@ -6,8 +6,6 @@ from typing import Optional
 import boto3
 
 class S3Client:
-    """Client for Amazon S3 file operations."""
-
     def __init__(self):
         region = os.getenv("AWS_REGION", "us-east-1")
         self.client = boto3.client("s3", region_name=region)
@@ -15,30 +13,13 @@ class S3Client:
         print(f"S3Client initialized (bucket={self.bucket_name})")
 
     def upload_file(self, content: str, key: str):
-        try:
             self.client.put_object(Bucket=self.bucket_name, Key=key, Body=content)
             print(f"Uploaded content -> s3://{self.bucket_name}/{key}")
-        except Exception as e:
-            raise
 
     def read_file_content(self, key: str) -> Optional[str]:
-        """Read the content of an S3 file and extract text."""
-        try:
-            print(f"Reading S3 object: {key} from bucket: {self.bucket_name}")
-            response = self.client.get_object(Bucket=self.bucket_name, Key=key)
-            file_bytes = response["Body"].read()
-            try:
-                content = file_bytes.decode("utf-8")
-                print(
-                    f"Read {len(content)} characters from "
-                    f"s3://{self.bucket_name}/{key}"
-                )
-            except UnicodeDecodeError:
-                print(f"Warning: File {key} is not UTF-8 text")
-                return None
-
-            return content
-
-        except Exception as e:
-            print(f"Error reading file {key}: {e}")
-            return None
+        print(f"Reading S3 object: {key} from bucket: {self.bucket_name}")
+        response = self.client.get_object(Bucket=self.bucket_name, Key=key)
+        file_bytes = response["Body"].read()
+        content = file_bytes.decode("utf-8")
+        print(f"Read {len(content)} characters from s3://{self.bucket_name}/{key}")
+        return content

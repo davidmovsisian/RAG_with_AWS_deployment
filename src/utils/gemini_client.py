@@ -31,7 +31,7 @@ class GeminiClient:
             return np.array([e.values for e in result.embeddings], dtype="float32")
         except Exception as e:
             print(f"Error generating embedding: {e}")
-            raise
+            return np.array([], dtype="float32")
     
     def generate_answer(self, context, question):
         prompt = f"""Use the following context to answer the question clearly.
