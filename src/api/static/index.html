@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RAG Chat Assistant</title>
+    <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+    <div class="container">
+
+        <!-- Header -->
+        <header>
+            <h1>RAG Chat Assistant</h1>
+            <p class="subtitle">Ask questions about your uploaded documents</p>
+        </header>
+
+        <!-- Upload Section -->
+        <section class="upload-section">
+            <h2>Upload Documents</h2>
+            <div class="upload-controls">
+                <!-- Only .txt files are accepted -->
+                <input type="file" id="fileInput" accept=".txt" multiple />
+                <button id="uploadBtn" onclick="uploadFiles()">Upload</button>
+            </div>
+            <!-- Status message shown after upload attempt -->
+            <p id="uploadStatus" class="status-message"></p>
+        </section>
+
+        <!-- Chat Section -->
+        <section class="chat-section">
+            <h2>Chat</h2>
+
+            <!-- Message display area -->
+            <div id="chatBox" class="chat-box">
+                <!-- Messages are appended here by JavaScript -->
+            </div>
+
+            <!-- Input area -->
+            <div class="input-area">
+                <input
+                    type="text"
+                    id="questionInput"
+                    placeholder="Type your question..."
+                    onkeydown="handleKeyDown(event)"
+                />
+
+                <!-- top_k controls how many context chunks are retrieved -->
+                <select id="topKSelect" title="Number of context chunks to retrieve">
+                    <option value="1">top_k: 1</option>
+                    <option value="2">top_k: 2</option>
+                    <option value="3" selected>top_k: 3</option>
+                    <option value="4">top_k: 4</option>
+                    <option value="5">top_k: 5</option>
+                </select>
+
+                <button id="sendBtn" onclick="sendQuestion()">Send</button>
+            </div>
+        </section>
+
+    </div>
+
+    <script src="js/script.js"></script>
+</body>
+</html>

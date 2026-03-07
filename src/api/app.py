@@ -1,14 +1,18 @@
 import os
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from dotenv import load_dotenv
 from worker.rag_worker import RagWorker
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='')
 
 # Global worker
 worker = None
+
+@app.route('/')
+def index():
+    return send_from_directory(app.static_folder, 'index.html')
 
 @app.route("/health", methods=["GET"])
 def health_check():
