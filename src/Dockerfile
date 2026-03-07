@@ -17,5 +17,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code 
 COPY . .
 
-# Run the worker using the direct file path
+EXPOSE 5000
+
+# Run Flask app
 CMD ["python", "api/app.py"]

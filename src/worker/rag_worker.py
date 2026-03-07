@@ -1,7 +1,7 @@
 import os
 import threading
 import boto3
-from flask import FileStorage
+# from flask import FileStorage
 from utils.gemini_client import GeminiClient
 from utils.opensearch_client import OpenSearchClient
 from utils.s3_client import S3Client
@@ -37,13 +37,13 @@ class RagWorker:
         self.sqs_worker = SQSWorker(self.sqs_client, self.s3_client, self.document_processor)
         self.sqs_worker_thread = None
         
-    def upload_file(self, file:FileStorage):
+    def upload_file(self, file):
         content = file.read()
         self.s3_client.upload_file(content, key=file.filename)
 
     def ask_question(self, question:str, top_k:int=5) ->dict:
         question_embedding = self.gemini_client.get_embedding(question)
-        chunks = self.opensearch_client.search(question_embedding.to_list(), top_k=top_k)
+        chunks = self.opensearch_client.search(question_embedding, top_k=top_k)
         if not chunks:
             return {"error": "No documents indexed. Upload documents first."}
         context_parts = []         

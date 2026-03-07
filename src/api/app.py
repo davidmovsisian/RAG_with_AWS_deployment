@@ -1,6 +1,12 @@
 import os
+import sys
 from flask import Flask, request, jsonify, send_from_directory
 from dotenv import load_dotenv
+
+SRC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
+
 from worker.rag_worker import RagWorker
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))

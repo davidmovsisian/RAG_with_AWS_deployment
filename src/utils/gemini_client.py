@@ -2,7 +2,6 @@ import os
 from typing import List
 from google import genai
 from google.genai import types
-import numpy as np
 
 class GeminiClient:
     def __init__(self):
@@ -28,10 +27,13 @@ class GeminiClient:
                 contents=text,
                 config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
             )
-            return np.array([e.values for e in result.embeddings], dtype="float32")
+            if not result.embeddings:
+                return []
+            # OpenSearch knn_vector expects a flat list of numbers.
+            return list(result.embeddings[0].values)
         except Exception as e:
             print(f"Error generating embedding: {e}")
-            return np.array([], dtype="float32")
+            return []
     
     def generate_answer(self, context, question):
         prompt = f"""Use the following context to answer the question clearly.
