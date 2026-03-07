@@ -1,10 +1,9 @@
 import os
 from flask import Flask, request, jsonify
 from dotenv import load_dotenv
+from worker.rag_worker import RagWorker
 
-load_dotenv()
-
-from worker.rag_worker import Worker
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 app = Flask(__name__)
 
@@ -23,7 +22,7 @@ def ask_question():
     question = data.get("question", "").strip()
     if not question:
         return jsonify({"error": "Question is required"}), 400
-    top_k = data.get("top_k", 5)
+    top_k = min(data.get("top_k", 5), 5)
     try:
         answer = worker.ask_question(question, top_k)
     except Exception as e:
@@ -33,7 +32,9 @@ def ask_question():
             "details": str(e)
         }), 500
 
-    return answer
+    if "error" in answer: 
+        return jsonify(answer), 400  
+    return jsonify(answer), 200
 
 @app.route("/upload", methods=["POST"])
 def upload_file():
@@ -53,7 +54,8 @@ def upload_file():
     return jsonify({"message": "Files uploaded successfully"})
 
 if __name__ == "__main__":
-    worker = Worker()
-    print("Worker initialized successfully")
+    worker = RagWorker()
+    print("RagWorker initialized successfully")
     port = int(os.getenv("FLASK_PORT", "5000"))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    host = os.getenv("FLASK_HOST", "0.0.0.0")
+    app.run(host=host, port=port, debug=True)

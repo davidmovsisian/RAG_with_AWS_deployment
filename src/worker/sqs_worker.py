@@ -1,14 +1,18 @@
 import json
 import os
 import time
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 import boto3
 import threading
+from utils.s3_client import S3Client
+from worker.document_processor import DocumentProcessor
 
-if TYPE_CHECKING:
-    from utils.s3_client import S3Client
-    from worker.document_processor import DocumentProcessor
-
+"""
+# read message from SQS, 
+# Read the file from S3,
+# Process the document with DocumentProcessor,
+# Delete the message from the queue 
+"""
 class SQSWorker:
     def __init__(self, 
                  sqs_client: boto3.client,
@@ -89,12 +93,9 @@ class SQSWorker:
             return records[0]["s3"]["object"]["key"]
         return event.get("s3_key") or None
 
-    def _delete_message(self, receipt_handle: str) -> None:
-        try:
-            self.sqs_client.delete_message(
-                QueueUrl=self.queue_url,
-                ReceiptHandle=receipt_handle,
-            )
-            print("Message deleted from queue")
-        except Exception as e:
-            raise
+    def _delete_message(self, receipt_handle: str):
+        self.sqs_client.delete_message(
+            QueueUrl=self.queue_url,
+            ReceiptHandle=receipt_handle,
+        )
+        print("Message deleted from queue")

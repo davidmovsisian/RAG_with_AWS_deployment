@@ -2,18 +2,14 @@ import os
 import threading
 import boto3
 from flask import FileStorage, jsonify
-from Lesson5.HW.infrastructure import worker
-from Lesson5.HW.src.worker import sqs_worker
-from Lesson5.HW.src.worker import sqs_worker
 from utils.gemini_client import GeminiClient
 from utils.opensearch_client import OpenSearchClient
 from utils.s3_client import S3Client
 from utils.chunking import TextChunker
 from worker.document_processor import DocumentProcessor
 from worker.sqs_worker import SQSWorker
-import threading
 
-class Worker:
+class RagWorker:
     """
     Manages all clients and services for the RAG system.
     """
@@ -40,22 +36,21 @@ class Worker:
         self.sqs_worker = SQSWorker(self.sqs_client, self.s3_client, self.document_processor)
         self.sqs_worker_thread = None
         
-    def upload_file(self, file:FileStorage) -> bool:
+    def upload_file(self, file:FileStorage):
         content = file.read()
         self.s3_client.upload_file(content, key=file.filename)
 
-    def ask_question(self, question:str, top_k:int=5) ->str:
+    def ask_question(self, question:str, top_k:int=5) ->dict:
         question_embedding = self.gemini_client.get_embedding(question)
-        chunks = self.opensearch_client.search(question_embedding, top_k=top_k)
+        chunks = self.opensearch_client.search(question_embedding.to_list(), top_k=top_k)
         if not chunks:
-            return jsonify({"error": "No documents indexed. Upload documents first."}), 400
+            return {"error": "No documents indexed. Upload documents first."}
         context_parts = []         
         for i, result in enumerate(chunks):
             context_parts.append(f"[{i+1}] {result['content']}")
         context = "\n\n".join(context_parts)
         answer = self.gemini_client.generate_answer(context, question)
-        return jsonify({"question": question, "top_k": top_k, "context": chunks, "answer": answer})
-
+        return {"question": question, "top_k": top_k, "context": chunks, "answer": answer}
         
     def health_check(self) -> dict:
         status = {
@@ -86,12 +81,15 @@ class Worker:
             status["services"]["gemini"] = "unhealthy"
             status["status"] = "degraded"
         try:
-            response = self.sqs_client.send_message(
-                QueueUrl=self.sqs_worker.queue_url,
-                MessageBody="health check"
-            )
-            if response.get("MessageId"):
+            if self.sqs_worker.queue_url:
+                self.sqs_client.get_queue_attributes(
+                    QueueUrl=self.sqs_worker.queue_url,
+                    AttributeNames=['ApproximateNumberOfMessages']
+                )
                 status["services"]["sqs"] = "healthy"
+            else:
+                status["services"]["sqs"] = "unhealthy"
+                status["status"] = "degraded"
         except Exception as e:
             status["services"]["sqs"] = "unhealthy"
             status["status"] = "degraded"
