@@ -18,4 +18,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Run the worker using the direct file path
-CMD ["python", "worker/run_worker.py"]
+CMD ["python", "api/app.py"]
