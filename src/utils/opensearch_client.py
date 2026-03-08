@@ -128,3 +128,39 @@ class OpenSearchClient:
         except Exception as e:
             print(f"Error performing search: {e}")
             raise
+
+    def search_by_metadata(self, field: str, value: str, size: int = 100) -> List[Dict[str, Any]]:
+        """Search documents by metadata field (e.g., filename)."""
+        try:
+            query = {
+                "size": size,
+                "query": {
+                    "match": {
+                        f"metadata.{field}": value
+                    }
+                }
+            }
+            response = self.client.search(index=self.index_name, body=query)
+            results = []
+            for hit in response["hits"]["hits"]:
+                results.append({
+                    "_id": hit["_id"],
+                    "score": hit["_score"],
+                    "content": hit["_source"].get("content", ""),
+                    "metadata": hit["_source"].get("metadata", {}),
+                })
+            print(f"Found {len(results)} documents matching {field}={value}")
+            return results
+        except Exception as e:
+            print(f"Error searching by metadata: {e}")
+            return []
+    
+    def delete_document(self, doc_id: str) -> bool:
+        """Delete a document by ID from the index."""
+        try:
+            self.client.delete(index=self.index_name, id=doc_id)
+            print(f"Deleted document with id={doc_id}")
+            return True
+        except Exception as e:
+            print(f"Error deleting document {doc_id}: {e}")
+            return False

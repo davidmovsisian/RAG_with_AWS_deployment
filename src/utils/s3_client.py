@@ -12,10 +12,11 @@ class S3Client:
         self.bucket_name = os.getenv("S3_BUCKET_NAME", "")
         print(f"S3Client initialized (bucket={self.bucket_name})")
 
-    def upload_file(self, file: str, key: str):
-            content = file.read()
-            self.client.put_object(Bucket=self.bucket_name, Key=key, Body=content)
-            print(f"Uploaded content -> s3://{self.bucket_name}/{key}")
+    def upload_file(self, file: str):
+        content = file.read()
+        key = file.filename
+        self.client.put_object(Bucket=self.bucket_name, Key=key, Body=content)
+        print(f"Uploaded content -> s3://{self.bucket_name}/{key}")
     
     def delete_file(self, key: str):
         self.client.delete_object(Bucket=self.bucket_name, Key=key)

@@ -89,18 +89,15 @@ def delete_file():
     if not filename:
         return jsonify({"error": "Filename is required"}), 400
     try:
-        success = worker.s3_client.delete_file(filename)
+        worker.s3_client.delete_file(filename)
     except Exception as e:
         print(f"Error deleting file: {e}")
         return jsonify({
             "error": f"An error occurred while deleting the file {filename}",
             "details": str(e)
         }), 500
-    if success:
-        return jsonify({"message": f"File {filename} deleted successfully"}), 200
-    else:
-        return jsonify({"error": f"File {filename} could not be deleted"}), 400
-
+    return jsonify({"message": f"File {filename} deleted successfully"}), 200
+    
 if __name__ == "__main__":
     worker = RagWorker()
     worker.start_sqs_worker()

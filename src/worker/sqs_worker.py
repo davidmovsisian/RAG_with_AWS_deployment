@@ -55,12 +55,12 @@ class SQSWorker:
 
                 print(f"Received {len(messages)} message(s)")
                 for message in messages:
-                    self._process_message(message)
+                    self.process_message(message)
             except Exception as e:
                 print(f"Error during polling: {e}")
                 time.sleep(self.poll_interval)
 
-    def _process_message(self, message: dict) -> None:
+    def process_message(self, message: dict) -> None:
         receipt_handle = message["ReceiptHandle"]
         try:
             body = json.loads(message["Body"])
