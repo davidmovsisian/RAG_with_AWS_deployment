@@ -19,7 +19,7 @@ PROJECT_NAME = os.environ.get('PROJECT_NAME', 'rag-class')
 
 
 def setup_s3_event_notification(bucket_name: str, queue_name: str, region: str) -> bool:
-    """Configure S3 to send ObjectCreated events to SQS."""
+    """Configure S3 to send ObjectCreated and ObjectRemoved events to SQS."""
     s3 = boto3.client('s3', region_name=region)
     sqs = boto3.client('sqs', region_name=region)
 
@@ -40,7 +40,10 @@ def setup_s3_event_notification(bucket_name: str, queue_name: str, region: str) 
         'QueueConfigurations': [{
             'Id': f"{PROJECT_NAME}-s3-event",
             'QueueArn': queue_arn,
-            'Events': ['s3:ObjectCreated:*'],
+            'Events': [
+                's3:ObjectCreated:*',
+                's3:ObjectRemoved:*'
+            ],
         }]
     }
 

@@ -41,3 +41,25 @@ class DocumentProcessor:
 
         print(f"Successfully processed {filename} ({total_chunks} chunks)")
         return True
+
+    def remove_document(self, filename: str) -> bool:
+        print(f"Processing removed document: {filename}")
+        query = {
+            "query": {
+                "match": {
+                    "filename": filename
+                }
+            }
+        }
+        results = self.opensearch_client.search(query)
+        if not results:
+            print(f"No indexed chunks found for {filename} to remove.")
+            return False
+
+        for result in results:
+            doc_id = result["_id"]
+            self.opensearch_client.delete_document(doc_id)
+            print(f"Deleted indexed chunk with ID {doc_id} for {filename}")
+
+        print(f"Successfully processed removal of {filename} ({len(results)} chunks deleted)")
+        return True

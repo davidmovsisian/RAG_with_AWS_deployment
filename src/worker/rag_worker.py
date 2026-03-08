@@ -39,6 +39,9 @@ class RagWorker:
     def upload_file(self, file):
         content = file.read()
         self.s3_client.upload_file(content, key=file.filename)
+    
+    def delete_file(self, file):
+        self.s3_client.delete_file(file.filename)
 
     def ask_question(self, question:str, top_k:int=5) ->dict:
         question_embedding = self.gemini_client.get_embedding(question)

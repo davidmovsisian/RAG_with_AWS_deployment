@@ -64,34 +64,49 @@ class SQSWorker:
         receipt_handle = message["ReceiptHandle"]
         try:
             body = json.loads(message["Body"])
-            s3_key = self._extract_s3_key(body)
+            s3_key, event_name = self._extract_s3_info(body)
             print(f"Processing S3 object: {s3_key}")
-            if not s3_key:
-                print(f"Could not extract S3 key from message: {body}")
+            if not s3_key or not event_name:
+                print(f"Could not extract S3 key or event name from message: {body}")
                 self._delete_message(receipt_handle)
                 return
-            
-            content = self.s3_client.read_file_content(s3_key)
-            if content is None:
-                print(f"Failed to read content for {s3_key}")
-                self._delete_message(receipt_handle)
-                return
-
-            filename = os.path.basename(s3_key)
-            success = self.document_processor.process_document(content, filename)
-            if success:
-                print(f"{s3_key} processed successfully.")
-            else:
-                print(f"{s3_key} processing failed")
-            # self._delete_message(receipt_handle)
+            if event_name.startswith("s3:ObjectCreated"):
+                 self.proccees_document(receipt_handle, s3_key)
+            elif event_name.startswith("s3:ObjectRemoved"):
+                self.remove_document(receipt_handle, s3_key)
         except Exception as e:
             print(f"error processing message (receipt_handle={receipt_handle}): {e}")
 
-    def _extract_s3_key(self, event: dict) -> Optional[str]:
+    def proccees_document(self, receipt_handle, s3_key: str):
+        content = self.s3_client.read_file_content(s3_key)
+        if content is None:
+            print(f"Failed to read content for {s3_key}")
+            self._delete_message(receipt_handle)
+            return
+        filename = os.path.basename(s3_key)
+        success = self.document_processor.process_document(content, filename)
+        if success:
+            print(f"{s3_key} processed successfully.")
+        else:
+            print(f"{s3_key} processing failed")
+        self._delete_message(receipt_handle)
+    
+    def remove_document(self, receipt_handle, s3_key: str):
+        filename = os.path.basename(s3_key)
+        success = self.document_processor.remove_document(filename)
+        if success:
+            print(f"{s3_key} removed successfully.")
+        else:
+            print(f"{s3_key} removal failed")
+        self._delete_message(receipt_handle)
+
+    def _extract_s3_info(self, event: dict) -> Optional[str]:
         records = event.get("Records")
         if records:
-            return records[0]["s3"]["object"]["key"]
-        return event.get("s3_key") or None
+            event_name = records[0].get("eventName", "")
+            key = records[0]["s3"]["object"]["key"]
+            return [key, event_name]
+        return [event.get("s3_key"), event.get("event_name")]
 
     def _delete_message(self, receipt_handle: str):
         self.sqs_client.delete_message(

@@ -5,7 +5,7 @@ from worker.rag_worker import RagWorker
 import atexit
 import signal
 
-# shutdown handler to stop the sqs_worker on exit
+# shutdown handler to stop the sqs_worker thread on exit
 def _shutdown(*_args):
     if worker:
         worker.stop_sqs_worker()
@@ -68,6 +68,25 @@ def upload_file():
                     "details": str(e)
                 }), 500
     return jsonify({"message": "Files uploaded successfully"})
+
+@app.route("/delete", methods=["DELETE"])
+def delete_file():
+    data = request.get_json()
+    filename = data.get("filename", "").strip()
+    if not filename:
+        return jsonify({"error": "Filename is required"}), 400
+    try:
+        success = worker.delete_file(filename)
+    except Exception as e:
+        print(f"Error deleting file: {e}")
+        return jsonify({
+            "error": f"An error occurred while deleting the file {filename}",
+            "details": str(e)
+        }), 500
+    if success:
+        return jsonify({"message": f"File {filename} deleted successfully"}), 200
+    else:
+        return jsonify({"error": f"File {filename} could not be deleted"}), 400
 
 if __name__ == "__main__":
     worker = RagWorker()
