@@ -22,7 +22,7 @@ class RagWorker:
         
         # Initialize service clients
         self.s3_client = S3Client()
-        self.gemini_client = GeminiClient()
+        self.gemini_client = GeminiClient(pool_size=int(os.getenv("GEMINI_POOL_SIZE", "5")))
         self.opensearch_client = OpenSearchClient()
         self.text_chunker = TextChunker()
         # create index        
