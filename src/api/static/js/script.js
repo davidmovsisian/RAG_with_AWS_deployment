@@ -265,9 +265,7 @@ function displayFileTabs(files) {
         const tab = document.createElement('div');
         tab.className = 'file-tab';
 
-        const icon = document.createElement('span');
-        icon.className = 'file-icon';
-        icon.textContent = '📄';
+        // File icon removed - no longer needed
 
         const name = document.createElement('span');
         name.className = 'file-name';
@@ -278,7 +276,7 @@ function displayFileTabs(files) {
         btn.textContent = '✕';
         btn.addEventListener('click', () => deleteFile(filename));
 
-        tab.appendChild(icon);
+        // Only append name and button (no icon)
         tab.appendChild(name);
         tab.appendChild(btn);
         container.appendChild(tab);
