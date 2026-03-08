@@ -31,6 +31,19 @@ def health_check():
     http_status = 200 if status["status"] == "healthy" else 503
     return jsonify(status), http_status
 
+# return list of indexed documents
+@app.route("/list-files", methods=["GET"])
+def list_docs():
+    try:
+        files = worker.s3_client.list_files()
+        return jsonify({"files": files}), 200
+    except Exception as e:
+        print(f"Error listing documents: {e}")
+        return jsonify({
+            "error": "Error listing documents",
+            "details": str(e)
+        }), 500
+    
 @app.route("/ask", methods=["POST"])
 def ask_question():
     data = request.get_json()
@@ -60,7 +73,7 @@ def upload_file():
         if f.filename and f.filename.lower().endswith(".txt"):
             print(f"Uploading file: {f.filename}")
             try:
-                worker.upload_file(f)
+                worker.s3_client.upload_file(f)
             except Exception as e:
                 print(f"Error uploading file: {e}")
                 return jsonify({
@@ -69,14 +82,14 @@ def upload_file():
                 }), 500
     return jsonify({"message": "Files uploaded successfully"})
 
-@app.route("/delete", methods=["DELETE"])
+@app.route("/delete-file", methods=["DELETE"])
 def delete_file():
     data = request.get_json()
     filename = data.get("filename", "").strip()
     if not filename:
         return jsonify({"error": "Filename is required"}), 400
     try:
-        success = worker.delete_file(filename)
+        success = worker.s3_client.delete_file(filename)
     except Exception as e:
         print(f"Error deleting file: {e}")
         return jsonify({
@@ -91,7 +104,6 @@ def delete_file():
 if __name__ == "__main__":
     worker = RagWorker()
     worker.start_sqs_worker()
-    print("RagWorker initialized successfully")
     port = int(os.getenv("FLASK_PORT", "5000"))
     host = os.getenv("FLASK_HOST", "0.0.0.0")
     app.run(host=host, port=port, debug=True, use_reloader=False)

@@ -12,7 +12,8 @@ class S3Client:
         self.bucket_name = os.getenv("S3_BUCKET_NAME", "")
         print(f"S3Client initialized (bucket={self.bucket_name})")
 
-    def upload_file(self, content: str, key: str):
+    def upload_file(self, file: str, key: str):
+            content = file.read()
             self.client.put_object(Bucket=self.bucket_name, Key=key, Body=content)
             print(f"Uploaded content -> s3://{self.bucket_name}/{key}")
     
@@ -27,3 +28,14 @@ class S3Client:
         content = file_bytes.decode("utf-8")
         print(f"Read {len(content)} characters from s3://{self.bucket_name}/{key}")
         return content
+    
+    def list_files(self, prefix: str = "") -> list:
+        paginator = self.client.get_paginator('list_objects_v2')
+        page_iterator = paginator.paginate(Bucket=self.bucket_name, Prefix=prefix)
+        files = []
+        for page in page_iterator:
+            contents = page.get('Contents', [])
+            for obj in contents:
+                files.append(obj['Key'])
+        print(f"Listed {len(files)} files with prefix '{prefix}'")
+        return files

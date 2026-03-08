@@ -35,14 +35,8 @@ class RagWorker:
         )
         self.sqs_worker = SQSWorker(self.sqs_client, self.s3_client, self.document_processor)
         self.sqs_worker_thread = None
+        print("RagWorker initialized successfully")
         
-    def upload_file(self, file):
-        content = file.read()
-        self.s3_client.upload_file(content, key=file.filename)
-    
-    def delete_file(self, file):
-        self.s3_client.delete_file(file.filename)
-
     def ask_question(self, question:str, top_k:int=5) ->dict:
         question_embedding = self.gemini_client.get_embedding(question)
         chunks = self.opensearch_client.search(question_embedding, top_k=top_k)
