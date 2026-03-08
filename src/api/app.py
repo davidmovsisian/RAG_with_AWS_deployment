@@ -6,13 +6,13 @@ import atexit
 import signal
 
 # shutdown handler to stop the sqs_worker thread on exit
-def _shutdown(*_args):
-    if worker:
-        worker.stop_sqs_worker()
+# def _shutdown(*_args):
+#     if worker:
+#         worker.stop_sqs_worker()
 
-atexit.register(_shutdown)
-signal.signal(signal.SIGINT, _shutdown)
-signal.signal(signal.SIGTERM, _shutdown)
+# atexit.register(_shutdown)
+# signal.signal(signal.SIGINT, _shutdown)
+# signal.signal(signal.SIGTERM, _shutdown)
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 

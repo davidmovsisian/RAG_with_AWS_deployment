@@ -65,14 +65,14 @@ class SQSWorker:
         try:
             body = json.loads(message["Body"])
             s3_key, event_name = self._extract_s3_info(body)
-            print(f"Processing S3 object: {s3_key}")
+            print(f"Processing S3 object: {s3_key, event_name} from message")
             if not s3_key or not event_name:
                 print(f"Could not extract S3 key or event name from message: {body}")
                 self._delete_message(receipt_handle)
                 return
-            if event_name.startswith("s3:ObjectCreated"):
+            if event_name.startswith("ObjectCreated"):
                  self.proccees_document(receipt_handle, s3_key)
-            elif event_name.startswith("s3:ObjectRemoved"):
+            elif event_name.startswith("ObjectRemoved"):
                 self.remove_document(receipt_handle, s3_key)
         except Exception as e:
             print(f"error processing message (receipt_handle={receipt_handle}): {e}")
