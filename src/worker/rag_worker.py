@@ -1,7 +1,6 @@
 import os
 import threading
 import boto3
-# from flask import FileStorage
 from utils.gemini_client import GeminiClient
 from utils.opensearch_client import OpenSearchClient
 from utils.s3_client import S3Client

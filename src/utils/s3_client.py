@@ -15,7 +15,7 @@ class S3Client:
     def upload_file(self, content: str, key: str):
             self.client.put_object(Bucket=self.bucket_name, Key=key, Body=content)
             print(f"Uploaded content -> s3://{self.bucket_name}/{key}")
-
+    
     def read_file_content(self, key: str) -> Optional[str]:
         print(f"Reading S3 object: {key} from bucket: {self.bucket_name}")
         response = self.client.get_object(Bucket=self.bucket_name, Key=key)
