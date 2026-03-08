@@ -4,8 +4,10 @@
  * Uses vanilla JavaScript (no frameworks) to call the Flask API.
  *
  * API endpoints used:
- *   POST /ask    - send a question, get an AI answer + context chunks
- *   POST /upload - upload one or more .txt files
+ *   POST   /ask         - send a question, get an AI answer + context chunks
+ *   POST   /upload      - upload one or more .txt files
+ *   GET    /list-files  - retrieve list of uploaded files
+ *   DELETE /delete-file - delete an uploaded file by name
  */
 
 /* =============================================
@@ -118,6 +120,10 @@ async function uploadFiles() {
         } else {
             setStatus(statusEl, data.message || 'Files uploaded successfully.', 'success');
             fileInput.value = ''; // Clear the file input after success
+            // Wait 1 second for S3/SQS processing before refreshing the file list
+            setTimeout(() => {
+                loadFiles();
+            }, 1000);
         }
     } catch (err) {
         setStatus(statusEl, 'Network error during upload.', 'error');
@@ -223,3 +229,118 @@ function setStatus(el, text, type) {
     el.className = 'status-message'; // reset classes
     if (type) el.classList.add(type);
 }
+
+/* =============================================
+   File Management  (/list-files, /delete-file)
+   ============================================= */
+
+/**
+ * Fetches the list of uploaded files from the backend and renders them as tabs.
+ */
+async function loadFiles() {
+    try {
+        const response = await fetch('/list-files');
+        const data = await response.json();
+
+        if (response.ok) {
+            displayFileTabs(data.files || []);
+        } else {
+            console.error('Error loading files:', data.error);
+        }
+    } catch (error) {
+        console.error('Error loading files:', error);
+    }
+}
+
+/**
+ * Renders the given list of filenames as horizontal pill tabs inside #fileTabs.
+ * When the list is empty the CSS ::before pseudo-element shows a placeholder.
+ * @param {string[]} files - array of filenames
+ */
+function displayFileTabs(files) {
+    const container = document.getElementById('fileTabs');
+    container.innerHTML = '';
+
+    files.forEach(filename => {
+        const tab = document.createElement('div');
+        tab.className = 'file-tab';
+
+        const icon = document.createElement('span');
+        icon.className = 'file-icon';
+        icon.textContent = '📄';
+
+        const name = document.createElement('span');
+        name.className = 'file-name';
+        name.textContent = filename;
+
+        const btn = document.createElement('button');
+        btn.className = 'delete-btn';
+        btn.textContent = '✕';
+        btn.addEventListener('click', () => deleteFile(filename));
+
+        tab.appendChild(icon);
+        tab.appendChild(name);
+        tab.appendChild(btn);
+        container.appendChild(tab);
+    });
+}
+
+/**
+ * Sends a DELETE request to remove a file, then refreshes the file list.
+ * No confirmation dialog is shown (by design).
+ * @param {string} filename
+ */
+async function deleteFile(filename) {
+    // Visually mark the tab as being deleted
+    const tabs = document.querySelectorAll('.file-tab');
+    tabs.forEach(tab => {
+        if (tab.querySelector('.file-name').textContent === filename) {
+            tab.classList.add('deleting');
+        }
+    });
+
+    try {
+        const response = await fetch('/delete-file', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            console.log(`Deleted: ${filename}`);
+        } else {
+            alert(`Error deleting file: ${data.error || 'An unexpected error occurred.'}`);
+        }
+    } catch (error) {
+        console.error('Delete error:', error);
+        alert('Network error. Please try again.');
+    } finally {
+        loadFiles();
+    }
+}
+
+/**
+ * Escapes special HTML characters to prevent XSS when inserting filenames into the DOM.
+ * @param {string} text
+ * @returns {string}
+ */
+function escapeHtml(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+/* =============================================
+   Initialization
+   ============================================= */
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadFiles();
+});
