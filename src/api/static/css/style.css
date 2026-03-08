@@ -249,6 +249,93 @@ header .subtitle {
 }
 
 /* =============================================
+   File Tabs  (#fileTabs)
+   ============================================= */
+
+/* Container: horizontal flex row with wrap */
+.file-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 20px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    min-height: 60px;
+    align-items: center;
+}
+
+/* Empty-state placeholder (shown via CSS when the container has no children) */
+.file-tabs:empty::before {
+    content: "No files uploaded yet";
+    color: #999;
+    font-style: italic;
+    font-size: 14px;
+}
+
+/* Individual pill-shaped tab */
+.file-tab {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: white;
+    border: 2px solid #ddd;
+    border-radius: 20px;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.file-tab:hover {
+    border-color: #007bff;
+    box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+    transform: translateY(-1px);
+}
+
+.file-icon {
+    font-size: 16px;
+}
+
+.file-name {
+    font-weight: 500;
+    color: #333;
+}
+
+/* Red circular delete button */
+.delete-btn {
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.delete-btn:hover {
+    background: #c82333;
+    transform: scale(1.15);
+}
+
+.delete-btn:active {
+    transform: scale(0.95);
+}
+
+/* Deleting state: dim the tab and disable interaction */
+.file-tab.deleting {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+/* =============================================
    Responsive tweaks
    ============================================= */
 @media (max-width: 500px) {
