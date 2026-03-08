@@ -256,12 +256,12 @@ header .subtitle {
 .file-tabs {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 20px;
-    padding: 12px;
+    gap: 5px;
+    margin-bottom: 12px;
+    padding: 8px;
     background: #f8f9fa;
     border-radius: 8px;
-    min-height: 60px;
+    min-height: 45px;
     align-items: center;
 }
 
@@ -277,11 +277,11 @@ header .subtitle {
 .file-tab {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 14px;
+    gap: 6px;
+    padding: 6px 10px;
     background: white;
     border: 2px solid #ddd;
-    border-radius: 20px;
+    border-radius: 8px;
     font-size: 14px;
     transition: all 0.2s ease;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
@@ -293,9 +293,11 @@ header .subtitle {
     transform: translateY(-1px);
 }
 
+/* File icon removed per user request
 .file-icon {
     font-size: 16px;
 }
+*/
 
 .file-name {
     font-weight: 500;
