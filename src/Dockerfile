@@ -20,4 +20,4 @@ COPY . .
 EXPOSE 5000
 
 # Run Flask app
-CMD ["python", "api/app.py"]
+CMD ["python", "-m", "api.app"]

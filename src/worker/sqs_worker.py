@@ -8,7 +8,7 @@ from utils.s3_client import S3Client
 from worker.document_processor import DocumentProcessor
 
 """
-# read message from SQS, 
+# read message from SQS, retrieve the S3 key from the message, 
 # Read the file from S3,
 # Process the document with DocumentProcessor,
 # Delete the message from the queue 
@@ -83,7 +83,7 @@ class SQSWorker:
                 print(f"{s3_key} processed successfully.")
             else:
                 print(f"{s3_key} processing failed")
-            self._delete_message(receipt_handle)
+            # self._delete_message(receipt_handle)
         except Exception as e:
             print(f"error processing message (receipt_handle={receipt_handle}): {e}")
 

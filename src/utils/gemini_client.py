@@ -25,7 +25,9 @@ class GeminiClient:
             result = self.client.models.embed_content(
                 model=self.embedding_model,
                 contents=text,
-                config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT")
+                config=types.EmbedContentConfig(
+                    task_type="RETRIEVAL_DOCUMENT",
+                    output_dimensionality=768)
             )
             if not result.embeddings:
                 return []

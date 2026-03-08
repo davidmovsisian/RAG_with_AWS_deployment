@@ -1,13 +1,18 @@
 import os
-import sys
 from flask import Flask, request, jsonify, send_from_directory
 from dotenv import load_dotenv
-
-SRC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if SRC_DIR not in sys.path:
-    sys.path.insert(0, SRC_DIR)
-
 from worker.rag_worker import RagWorker
+import atexit
+import signal
+
+# shutdown handler to stop the sqs_worker on exit
+def _shutdown(*_args):
+    if worker:
+        worker.stop_sqs_worker()
+
+atexit.register(_shutdown)
+signal.signal(signal.SIGINT, _shutdown)
+signal.signal(signal.SIGTERM, _shutdown)
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
@@ -53,6 +58,7 @@ def upload_file():
     files = request.files.getlist("files")
     for f in files:
         if f.filename and f.filename.lower().endswith(".txt"):
+            print(f"Uploading file: {f.filename}")
             try:
                 worker.upload_file(f)
             except Exception as e:
@@ -65,7 +71,8 @@ def upload_file():
 
 if __name__ == "__main__":
     worker = RagWorker()
+    worker.start_sqs_worker()
     print("RagWorker initialized successfully")
     port = int(os.getenv("FLASK_PORT", "5000"))
     host = os.getenv("FLASK_HOST", "0.0.0.0")
-    app.run(host=host, port=port, debug=True)
+    app.run(host=host, port=port, debug=True, use_reloader=False)
