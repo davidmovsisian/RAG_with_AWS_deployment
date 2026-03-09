@@ -337,6 +337,12 @@ header .subtitle {
     pointer-events: none;
 }
 
+.hidden {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none; /* Prevents clicking on invisible elements */
+}
+
 /* =============================================
    Responsive tweaks
    ============================================= */

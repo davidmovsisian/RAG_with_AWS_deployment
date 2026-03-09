@@ -228,6 +228,17 @@ function setStatus(el, text, type) {
     el.textContent = text;
     el.className = 'status-message'; // reset classes
     if (type) el.classList.add(type);
+
+    el.classList.remove('hidden');
+
+     // 2. Set a timer to hide it after 1 seconds
+    setTimeout(() => {
+        el.classList.add('hidden');
+        
+        // Optional: Clear text after fade out finishes (e.g., after 200ms transition)
+        setTimeout(() => { el.textContent = ''; }, 200);
+    }, 1000);
+
 }
 
 /* =============================================
@@ -289,6 +300,7 @@ function displayFileTabs(files) {
  * @param {string} filename
  */
 async function deleteFile(filename) {
+    const statusEl = document.getElementById('uploadStatus');
     // Visually mark the tab as being deleted
     const tabs = document.querySelectorAll('.file-tab');
     tabs.forEach(tab => {
@@ -308,12 +320,13 @@ async function deleteFile(filename) {
 
         if (response.ok) {
             console.log(`Deleted: ${filename}`);
+            setStatus(statusEl, `File deleted successfully: ${filename}`, 'success');
         } else {
-            alert(`Error deleting file: ${data.error || 'An unexpected error occurred.'}`);
+            setStatus(statusEl, `Error deleting file: ${data.error || 'An unexpected error occurred.'}`, 'error');
         }
     } catch (error) {
         console.error('Delete error:', error);
-        alert('Network error. Please try again.');
+        setStatus(statusEl, 'Network error. Please try again.', 'error');
     } finally {
         loadFiles();
     }
