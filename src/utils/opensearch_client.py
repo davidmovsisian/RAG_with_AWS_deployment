@@ -49,8 +49,10 @@ class OpenSearchClient:
             )
             print("OpenSearchClient initialized with AWS IAM auth")
 
-    def create_index(self, dimension: int = 768) -> bool:
+    def create_index(self, dimension: int = None) -> bool:
         """Create a KNN-enabled index with HNSW algorithm."""
+        if dimension is None:
+            dimension = int(os.getenv("EMBEDDING_DIMENSION", "768"))
         try:
             if self.client.indices.exists(index=self.index_name):
                 print(f"Index '{self.index_name}' already exists")
