@@ -42,13 +42,16 @@ atexit.register(shutdown_handler)
 signal.signal(signal.SIGINT, shutdown_handler)
 signal.signal(signal.SIGTERM, shutdown_handler)
 
-
 @app.route('/')
 def index():
+    if worker is None:  
+        return jsonify({"error": "Worker not initialized"}), 503
     return send_from_directory(app.static_folder, 'index.html')
 
 @app.route("/health", methods=["GET"])
 def health_check():
+    if worker is None:  
+        return jsonify({"error": "Worker not initialized"}), 503
     status = worker.health_check()
     http_status = 200 if status["status"] == "healthy" else 503
     return jsonify(status), http_status
@@ -56,6 +59,8 @@ def health_check():
 # return list of indexed documents
 @app.route("/list-files", methods=["GET"])
 def list_docs():
+    if worker is None:  
+        return jsonify({"error": "Worker not initialized"}), 503
     try:
         files = worker.s3_client.list_files()
         return jsonify({"files": files}), 200
@@ -68,6 +73,8 @@ def list_docs():
     
 @app.route("/ask", methods=["POST"])
 def ask_question():
+    if worker is None:  
+        return jsonify({"error": "Worker not initialized"}), 503
     data = request.get_json()
     question = data.get("question", "").strip()
     if not question:
@@ -88,6 +95,8 @@ def ask_question():
 
 @app.route("/upload", methods=["POST"])
 def upload_file():
+    if worker is None:  
+        return jsonify({"error": "Worker not initialized"}), 503
     if "files" not in request.files:
         return jsonify({"error": "No files in request"}), 400
     files = request.files.getlist("files")
@@ -106,6 +115,8 @@ def upload_file():
 
 @app.route("/delete-file", methods=["DELETE"])
 def delete_file():
+    if worker is None:  
+        return jsonify({"error": "Worker not initialized"}), 503
     data = request.get_json()
     filename = data.get("filename", "").strip()
     if not filename:
@@ -119,9 +130,11 @@ def delete_file():
             "details": str(e)
         }), 500
     return jsonify({"message": f"File {filename} deleted successfully"}), 200
-    
+
+#application entry point - initialize worker and start Flask app 
+init_worker()
+
 if __name__ == "__main__":
-    init_worker()
     port = int(os.getenv("FLASK_PORT", "5000"))
     host = os.getenv("FLASK_HOST", "0.0.0.0")
     print("Running Flask dev server (use Gunicorn in production)")
