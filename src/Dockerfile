@@ -8,6 +8,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Set working directory
 WORKDIR /rag_app
 
+# Install system dependencies (if needed)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy requirements
 COPY requirements.txt .
 
@@ -17,7 +22,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code 
 COPY . .
 
+# Copy Gunicorn configuration
+# COPY gunicorn.conf.py .
+
 EXPOSE 5000
 
-# Run Flask app
-CMD ["python", "-m", "api.app"]
+# Use Gunicorn instead of Flask dev server
+CMD ["gunicorn", "--config", "gunicorn.conf.py", "api.app:app"]

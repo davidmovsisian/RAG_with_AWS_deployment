@@ -38,7 +38,7 @@ class RagWorker:
         print("RagWorker initialized successfully")
         
     def ask_question(self, question:str, top_k:int=5) ->dict:
-        question_embedding = self.gemini_client.get_embedding(question)
+        question_embedding = self.gemini_client.get_embedding(question, is_query=True)
         chunks = self.opensearch_client.search(question_embedding, top_k=top_k)
         if not chunks:
             return {"error": "No documents indexed. Upload documents first."}

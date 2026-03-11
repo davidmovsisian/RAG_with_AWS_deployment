@@ -38,14 +38,14 @@ class GeminiClient:
     def _release_client(self, client):
         self.client_pool.put(client)
 
-    def get_embedding(self, text: str) -> List[float]:
+    def get_embedding(self, text: str, is_query: bool = False) -> List[float]:
         client = self._get_client()
         try:
             result = client.models.embed_content(
                 model=self.embedding_model,
                 contents=text,
                 config=types.EmbedContentConfig(
-                    task_type="RETRIEVAL_DOCUMENT",
+                    task_type="RETRIEVAL_DOCUMENT" if not is_query else "RETRIEVAL_QUERY",
                     output_dimensionality=self.embedding_dimension)
             )
             if not result.embeddings:

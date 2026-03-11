@@ -20,6 +20,28 @@ app = Flask(__name__, static_folder='static', static_url_path='')
 
 # Global worker
 worker = None
+def init_worker():
+    """Initialize RagWorker (called once at startup)"""
+    global worker
+    if worker is None:
+        worker = RagWorker()
+        worker.start_sqs_worker()
+        print("RagWorker initialized and SQS worker started")
+
+
+def shutdown_handler(*_args):
+    global worker
+    if worker:
+        print("Shutting down worker...")
+        worker.stop_sqs_worker()
+        print("Worker stopped")
+
+
+# Register shutdown handlers
+atexit.register(shutdown_handler)
+signal.signal(signal.SIGINT, shutdown_handler)
+signal.signal(signal.SIGTERM, shutdown_handler)
+
 
 @app.route('/')
 def index():
@@ -99,8 +121,8 @@ def delete_file():
     return jsonify({"message": f"File {filename} deleted successfully"}), 200
     
 if __name__ == "__main__":
-    worker = RagWorker()
-    worker.start_sqs_worker()
+    init_worker()
     port = int(os.getenv("FLASK_PORT", "5000"))
     host = os.getenv("FLASK_HOST", "0.0.0.0")
+    print("Running Flask dev server (use Gunicorn in production)")
     app.run(host=host, port=port, debug=False, use_reloader=False)
