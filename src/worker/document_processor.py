@@ -2,11 +2,6 @@ from utils.gemini_client import GeminiClient
 from utils.chunking import TextChunker
 from utils.opensearch_client import OpenSearchClient
 
-"""
-# chunk the document content
-# get embedding for each chunk
-# index each chunk with embedding and metadata into OpenSearch
-"""
 class DocumentProcessor:
     def __init__(
         self,

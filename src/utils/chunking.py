@@ -1,16 +1,9 @@
-"""
-Text chunking utilities for splitting documents into overlapping chunks.
-"""
-
 import os
 from typing import List
 
 
 class TextChunker:
-    """Splits text into overlapping chunks with optional sentence boundary awareness."""
-
     def __init__(self):
-        """Load chunking configuration from environment variables."""
         self.chunk_size = int(os.getenv("CHUNK_SIZE", "1000"))
         self.chunk_overlap = int(os.getenv("CHUNK_OVERLAP", "200"))
         self.max_chunk_size = int(os.getenv("MAX_CHUNK_SIZE", "1500"))
@@ -20,14 +13,6 @@ class TextChunker:
         )
 
     def chunk_text(self, text: str) -> List[str]:
-        """Split text into overlapping chunks, trying to break at sentence boundaries.
-
-        Args:
-            text: The input text to split.
-
-        Returns:
-            A list of text chunks.
-        """
         if not text or not text.strip():
             return []
 
@@ -56,14 +41,6 @@ class TextChunker:
         return chunks
 
     def chunk_by_sentences(self, text: str) -> List[str]:
-        """Split text strictly at sentence boundaries, grouping sentences into chunks.
-
-        Args:
-            text: The input text to split.
-
-        Returns:
-            A list of text chunks, each respecting sentence boundaries.
-        """
         if not text or not text.strip():
             return []
 
@@ -90,15 +67,6 @@ class TextChunker:
         return chunks
 
     def _find_sentence_boundary(self, text: str, position: int) -> int:
-        """Find the nearest sentence boundary at or before position.
-
-        Args:
-            text: The full text.
-            position: The target position.
-
-        Returns:
-            The index of the best boundary position.
-        """
         sentence_endings = ".!?"
         # Search backwards from position to find a sentence end
         for i in range(position, max(position - self.chunk_overlap, 0), -1):
@@ -108,14 +76,6 @@ class TextChunker:
         return position
 
     def _split_into_sentences(self, text: str) -> List[str]:
-        """Split text into individual sentences.
-
-        Args:
-            text: The text to split.
-
-        Returns:
-            A list of sentence strings.
-        """
         sentences = []
         current = ""
         for char in text:

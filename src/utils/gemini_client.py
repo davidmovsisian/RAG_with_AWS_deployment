@@ -3,7 +3,6 @@ from typing import List
 from google import genai
 from google.genai import types
 from queue import Queue, Empty
-import threading
 
 class GeminiClient:
     def __init__(self, pool_size=5):
@@ -23,7 +22,6 @@ class GeminiClient:
             client = genai.Client(api_key=self.api_key)
             self.client_pool.put(client)
 
-        # self.client = genai.Client(api_key=_api_key)
         print(
             f"GeminiClient initialized (embedding={self.embedding_model}, "
             f"llm={self.llm_model})"
@@ -50,7 +48,6 @@ class GeminiClient:
             )
             if not result.embeddings:
                 return []
-            # OpenSearch knn_vector expects a flat list of numbers.
             return list(result.embeddings[0].values)
         except Exception as e:
             print(f"Error generating embedding: {e}")
