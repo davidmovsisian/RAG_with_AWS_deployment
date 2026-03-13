@@ -15,15 +15,13 @@ def init_worker():
     global worker
     if worker is None:
         worker = RagWorker()
-        worker.start_sqs_worker()
-        print("RagWorker initialized and SQS worker started")
+        print("RagWorker initialized")
 
 
 def shutdown_handler(*_args):
     global worker
     if worker:
         print("Shutting down worker...")
-        worker.stop_sqs_worker()
         print("Worker stopped")
 
 

@@ -1,17 +1,21 @@
 
 services:
-  rag-app:
+  api:
     build:
       context: .
-      dockerfile: Dockerfile
-    image: rag-app:1.0
-    container_name: rag-application
+      dockerfile: Dockerfile.api
+    image: rag-api:latest
+    container_name: rag-api
     env_file:
       - .env
     environment:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - S3_BUCKET=${S3_BUCKET}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENSEARCH_HOST=${OPENSEARCH_HOST}
+      - OPENSEARCH_PORT=${OPENSEARCH_PORT}
         # Gunicorn configuration
       - GUNICORN_WORKERS=2
       - GUNICORN_THREADS=2
@@ -22,3 +26,28 @@ services:
     ports:
       - "5000:5000"
     restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    image: rag-worker:latest
+    env_file:
+      - .env
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - S3_BUCKET=${S3_BUCKET}
+      - SQS_QUEUE_URL=${SQS_QUEUE_URL}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENSEARCH_HOST=${OPENSEARCH_HOST}
+      - OPENSEARCH_PORT=${OPENSEARCH_PORT}
+      - WORKER_POLL_INTERVAL=${WORKER_POLL_INTERVAL:-5}
+      - WORKER_MAX_MESSAGES=${WORKER_MAX_MESSAGES:-10}
+      - WORKER_VISIBILITY_TIMEOUT=${WORKER_VISIBILITY_TIMEOUT:-300}
+      - GEMINI_POOL_SIZE=2
+    restart: unless-stopped
+    deploy:
+      replicas: 1  # Increase manually with: docker-compose up --scale worker=N
+                   # For auto-scaling based on SQS queue depth, use ECS/Fargate or Kubernetes
