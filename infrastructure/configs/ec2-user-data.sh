@@ -8,7 +8,7 @@ echo "--- Script Started: $(date) ---"
 timedatectl set-timezone UTC
 export DEBIAN_FRONTEND=noninteractive
 apt-get update && apt-get upgrade -yq
-apt-get install -yq curl wget git unzip jq ca-certificates gnupg lsb-release
+apt-get install -yq curl git ca-certificates gnupg lsb-release
 
 # 4. Install Docker (Consolidated)
 install -m 0755 -d /etc/apt/keyrings
@@ -21,8 +21,8 @@ apt-get update && apt-get install -yq docker-ce docker-ce-cli containerd.io dock
 systemctl enable --now docker
 usermod -aG docker ubuntu
 
-mkdir -p /home/ubuntu/rag_app/{data,logs}
-chown -R ubuntu:ubuntu /home/ubuntu/rag_app
+# mkdir -p /home/ubuntu/rag_app/{data,logs}
+# chown -R ubuntu:ubuntu /home/ubuntu/rag_app
 
 # 7. Final Verification
 docker info && docker compose version

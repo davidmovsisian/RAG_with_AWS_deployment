@@ -6,6 +6,7 @@ import boto3
 import threading
 from utils.s3_client import S3Client
 from worker.document_processor import DocumentProcessor
+from utils.pdf_extractor import PDFExtractor
 
 """
 # read message from SQS, retrieve the S3 key from the message, 
@@ -78,11 +79,36 @@ class SQSWorker:
             print(f"error processing message (receipt_handle={receipt_handle}): {e}")
 
     def proccees_document(self, receipt_handle, s3_key: str):
-        content = self.s3_client.read_file_content(s3_key)
-        if content is None:
-            print(f"Failed to read content for {s3_key}")
+        # Determine file, txt or pdf
+        extension = self.s3_client.get_file_type(s3_key)
+        
+        print(f"Processing document {s3_key} of type {extension})")
+        content = None
+
+        if extension == ".txt":
+            content = self.s3_client.read_file_content(s3_key)
+            if content is None:
+                print(f"Failed to read content for {s3_key}")
+                self._delete_message(receipt_handle)
+                return
+        elif extension == ".pdf":
+            pdf_bytes = self.s3_client.read_file_bytes(s3_key)
+            if pdf_bytes is None:
+                print(f"Failed to read content for {s3_key}")
+                self._delete_message(receipt_handle)
+                return
+            pdf_extractor = PDFExtractor()
+            content = pdf_extractor.extract_text_from_pdf(pdf_bytes, s3_key=s3_key)
+            if content is None:
+                print(f"Failed to extract text from PDF: {s3_key}")
+                self._delete_message(receipt_handle)
+                return
+        else:
+            print(f"Unsupported file type: {extension} for {s3_key}")
             self._delete_message(receipt_handle)
             return
+        
+        # Process the document content 
         filename = os.path.basename(s3_key)
         success = self.document_processor.process_document(content, filename)
         if success:

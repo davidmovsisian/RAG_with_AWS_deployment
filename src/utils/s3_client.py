@@ -1,8 +1,5 @@
-"""
-S3 client for downloading, reading, and moving documents in S3.
-"""
 import os
-from typing import Optional
+from typing import Optional, Tuple
 import boto3
 
 class S3Client:
@@ -29,7 +26,25 @@ class S3Client:
         content = file_bytes.decode("utf-8")
         print(f"Read {len(content)} characters from s3://{self.bucket_name}/{key}")
         return content
+
+    def read_file_bytes(self, key: str) -> Optional[bytes]:
+        print(f"Reading S3 object as bytes: {key}")
+        try:
+            response = self.client.get_object(Bucket=self.bucket_name, Key=key)
+            file_bytes = response["Body"].read()
+            print(f"Read {len(file_bytes)} bytes from s3://{self.bucket_name}/{key}")
+            return file_bytes
+        except Exception as e:
+            print(f"Error reading bytes from S3: {e}")
+            return None
     
+    def get_file_type(self, key: str) -> str:
+        extension = os.path.splitext(key)[1].lower()
+        if extension != '.pdf' and extension != '.txt':
+            return 'unknown'
+        else:
+            return extension
+            
     def list_files(self, prefix: str = "") -> list:
         paginator = self.client.get_paginator('list_objects_v2')
         page_iterator = paginator.paginate(Bucket=self.bucket_name, Prefix=prefix)

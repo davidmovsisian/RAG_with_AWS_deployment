@@ -4,7 +4,7 @@
     {
       "Sid": "S3Access",
       "Effect": "Allow",
-      "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject","s3:ListBucket"],
       "Resource": [
         "arn:aws:s3:::{{BUCKET_NAME}}",
         "arn:aws:s3:::{{BUCKET_NAME}}/*"
@@ -19,7 +19,7 @@
     {
       "Sid": "OpenSearchAccess",
       "Effect": "Allow",
-      "Action": ["es:ESHttpPost", "es:ESHttpPut", "es:ESHttpGet"],
+      "Action": ["es:ESHttpPost", "es:ESHttpPut", "es:ESHttpGet", "es:ESHttpDelete"],
       "Resource": "arn:aws:es:{{AWS_REGION}}:{{ACCOUNT_ID}}:domain/{{OPENSEARCH_DOMAIN}}/*"
     },
     {

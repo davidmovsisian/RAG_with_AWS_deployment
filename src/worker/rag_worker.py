@@ -9,10 +9,6 @@ from worker.document_processor import DocumentProcessor
 from worker.sqs_worker import SQSWorker
 
 class RagWorker:
-    """
-    Manages all clients and services for the RAG system.
-    Starts the SQS worker in a separate thread
-    """
     def __init__(self):
         print("Initializing Worker...")
         

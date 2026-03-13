@@ -5,15 +5,6 @@ from worker.rag_worker import RagWorker
 import atexit
 import signal
 
-# shutdown handler to stop the sqs_worker thread on exit
-# def _shutdown(*_args):
-#     if worker:
-#         worker.stop_sqs_worker()
-
-# atexit.register(_shutdown)
-# signal.signal(signal.SIGINT, _shutdown)
-# signal.signal(signal.SIGTERM, _shutdown)
-
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 app = Flask(__name__, static_folder='static', static_url_path='')
@@ -21,7 +12,6 @@ app = Flask(__name__, static_folder='static', static_url_path='')
 # Global worker
 worker = None
 def init_worker():
-    """Initialize RagWorker (called once at startup)"""
     global worker
     if worker is None:
         worker = RagWorker()
@@ -100,11 +90,16 @@ def upload_file():
     if "files" not in request.files:
         return jsonify({"error": "No files in request"}), 400
     files = request.files.getlist("files")
+
+    SUPPORTED_EXTENSIONS = ('.txt', '.pdf')
+    uploaded_files = []
+
     for f in files:
-        if f.filename and f.filename.lower().endswith(".txt"):
+        if f.filename and f.filename.lower().endswith(SUPPORTED_EXTENSIONS):
             print(f"Uploading file: {f.filename}")
             try:
                 worker.s3_client.upload_file(f)
+                uploaded_files.append(f.filename)
             except Exception as e:
                 print(f"Error uploading file: {e}")
                 return jsonify({

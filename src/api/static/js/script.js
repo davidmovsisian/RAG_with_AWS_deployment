@@ -5,7 +5,7 @@
  *
  * API endpoints used:
  *   POST   /ask         - send a question, get an AI answer + context chunks
- *   POST   /upload      - upload one or more .txt files
+ *   POST   /upload      - upload one or more .txt or .pdf files
  *   GET    /list-files  - retrieve list of uploaded files
  *   DELETE /delete-file - delete an uploaded file by name
  */

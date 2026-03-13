@@ -5,3 +5,4 @@ requests-aws4auth
 google-genai
 flask
 gunicorn
+pypdf
