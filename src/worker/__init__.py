@@ -1,4 +1,4 @@
-from .rag_worker import ApiWorker
+from .api_worker import ApiWorker
 from .sqs_worker import SQSWorker
 from .document_processor import DocumentProcessor
 

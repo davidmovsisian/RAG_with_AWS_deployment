@@ -1,7 +1,7 @@
 import os
 from flask import Flask, request, jsonify, send_from_directory
 from dotenv import load_dotenv
-from src.worker.api_worker import ApiWorker
+from worker.api_worker import ApiWorker
 # import atexit
 # import signal
 

@@ -1,10 +1,10 @@
 
 services:
-  api:
+  api_worker:
     build:
       context: .
       dockerfile: Dockerfile.api
-    image: rag-app:1.0
+    image: rag-api:1.0
     container_name: rag-api
     env_file:
       - .env
@@ -15,12 +15,12 @@ services:
     ports:
       - "5000:5000"
     restart: unless-stopped 
-  worker:
+  sqs_worker:
     build:
       context: .
-      dockerfile: Dockerfile.worker
-    image: rag-worker:1.0
-    container_name: rag-worker
+      dockerfile: Dockerfile.sqs_worker
+    image: rag-sqs_worker:1.0
+    # container_name: rag-sqs_worker
     env_file:
       - .env
     environment:
@@ -29,4 +29,4 @@ services:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
     restart: unless-stopped
     deploy:
-      replicas: 2 # Scale to 2 worker instances
+      replicas: 1 # Scale to 1 worker instance
