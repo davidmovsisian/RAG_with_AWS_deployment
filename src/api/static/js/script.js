@@ -4,10 +4,11 @@
  * Uses vanilla JavaScript (no frameworks) to call the Flask API.
  *
  * API endpoints used:
- *   POST   /ask         - send a question, get an AI answer + context chunks
- *   POST   /upload      - upload one or more .txt or .pdf files
- *   GET    /list-files  - retrieve list of uploaded files
- *   DELETE /delete-file - delete an uploaded file by name
+ *   POST   /ask                - send a question, get an AI answer + context chunks
+ *   POST   /upload             - upload one or more .txt or .pdf files
+ *   GET    /list-files         - retrieve list of uploaded files
+ *   POST   /check-files-ready  - check if files are indexed in OpenSearch
+ *   DELETE /delete-file        - delete an uploaded file by name
  */
 
 /* =============================================
@@ -82,8 +83,8 @@ function handleKeyDown(event) {
    ============================================= */
 
 /**
- * Reads the file input and POSTs all selected .txt files to /upload.
- * Displays a status message with the result.
+ * Reads the file input and POSTs all selected .txt or .pdf files to /upload.
+ * Displays a status message with the result and polls until files are ready.
  */
 async function uploadFiles() {
     const fileInput   = document.getElementById('fileInput');
@@ -92,7 +93,7 @@ async function uploadFiles() {
     const files       = fileInput.files;
 
     if (!files || files.length === 0) {
-        setStatus(statusEl, 'Please select at least one .txt file.', 'error');
+        setStatus(statusEl, 'Please select at least one .txt or .pdf file.', 'error');
         return;
     }
 
@@ -117,19 +118,82 @@ async function uploadFiles() {
         if (!response.ok) {
             const msg = data.error || 'Upload failed. Please try again.';
             setStatus(statusEl, msg, 'error');
+            uploadBtn.disabled = false;
         } else {
-            setStatus(statusEl, data.message || 'Files uploaded successfully.', 'success');
             fileInput.value = ''; // Clear the file input after success
-            // Wait 1 second for S3/SQS processing before refreshing the file list
-            setTimeout(() => {
+            
+            // Start polling for file readiness
+            if (data.files && data.files.length > 0) {
+                await pollFilesReady(data.files, statusEl, uploadBtn);
+            } else {
+                setStatus(statusEl, 'Files uploaded successfully.', 'success');
+                uploadBtn.disabled = false;
                 loadFiles();
-            }, 1000);
+            }
         }
     } catch (err) {
         setStatus(statusEl, 'Network error during upload.', 'error');
-    } finally {
         uploadBtn.disabled = false;
     }
+}
+
+/**
+ * Poll until all uploaded files are indexed in OpenSearch
+ * @param {Array<string>} filenames - List of uploaded filenames
+ * @param {HTMLElement} statusEl - Status element to update
+ * @param {HTMLElement} uploadBtn - Upload button to re-enable
+ */
+async function pollFilesReady(filenames, statusEl, uploadBtn) {
+    const maxAttempts = 60; // 60 attempts * 5 seconds = 5 minutes max
+    let attempts = 0;
+    
+    setStatus(statusEl, `Processing ${filenames.length} file(s)...`, '');
+    
+    const checkStatus = async () => {
+        attempts++;
+        
+        try {
+            const response = await fetch('/check-files-ready', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ files: filenames })
+            });
+            
+            const data = await response.json();
+            
+            if (data.all_ready) {
+                // All files are indexed
+                setStatus(statusEl, `All ${filenames.length} file(s) are ready!`, 'success');
+                uploadBtn.disabled = false;
+                loadFiles();
+                return;
+            }
+            
+            // Count how many are ready
+            const readyCount = Object.values(data.files).filter(Boolean).length;
+            setStatus(statusEl, `Processing... (${readyCount}/${filenames.length} files ready)`, '');
+            
+            // Check if we've exceeded max attempts
+            if (attempts >= maxAttempts) {
+                setStatus(statusEl, 'Processing is taking longer than expected. Files may still be indexing.', 'error');
+                uploadBtn.disabled = false;
+                loadFiles();
+                return;
+            }
+            
+            // Poll again after delay
+            setTimeout(checkStatus, 5000); // Check every 5 seconds
+            
+        } catch (error) {
+            console.error('Error checking file status:', error);
+            setStatus(statusEl, 'Error checking file status. Files may still be processing.', 'error');
+            uploadBtn.disabled = false;
+            loadFiles();
+        }
+    };
+    
+    // Start polling after initial delay
+    setTimeout(checkStatus, 3000); // Initial delay of 3 seconds
 }
 
 /* =============================================
@@ -207,7 +271,7 @@ function appendAIMessage(data) {
    ============================================= */
 
 /**
- * Scrolls the chat box to its bottom so the latest message is visible.
+ * Ensures the chat box is scrolled to show the most recent message.
  * @param {HTMLElement} chatBox
  */
 function scrollToBottom(chatBox) {
@@ -215,34 +279,23 @@ function scrollToBottom(chatBox) {
 }
 
 /* =============================================
-   Helper: set upload status message
+   Helper: set status message
    ============================================= */
 
 /**
- * Updates the upload status paragraph with text and an optional CSS class.
- * @param {HTMLElement} el     - the status <p> element
- * @param {string}      text   - status text to display
- * @param {string}      type   - '' | 'success' | 'error'
+ * Updates the text and class of a status element.
+ * @param {HTMLElement} el   - the status element
+ * @param {string} text       - text to display
+ * @param {string} className  - 'success' | 'error' | ''
  */
-function setStatus(el, text, type) {
+function setStatus(el, text, className) {
     el.textContent = text;
-    el.className = 'status-message'; // reset classes
-    if (type) el.classList.add(type);
-
-    el.classList.remove('hidden');
-
-     // 2. Set a timer to hide it after 1 seconds
-    setTimeout(() => {
-        el.classList.add('hidden');
-        
-        // Optional: Clear text after fade out finishes (e.g., after 200ms transition)
-        setTimeout(() => { el.textContent = ''; }, 200);
-    }, 1000);
-
+    el.className = 'status-message';
+    if (className) el.classList.add(className);
 }
 
 /* =============================================
-   File Management  (/list-files, /delete-file)
+   List Files  (/list-files)
    ============================================= */
 
 /**
@@ -264,42 +317,53 @@ async function loadFiles() {
 }
 
 /**
- * Renders the given list of filenames as horizontal pill tabs inside #fileTabs.
- * When the list is empty the CSS ::before pseudo-element shows a placeholder.
- * @param {string[]} files - array of filenames
+ * Renders file tabs with delete buttons.
+ * @param {Array<string>} files - list of filenames
  */
 function displayFileTabs(files) {
     const container = document.getElementById('fileTabs');
-    container.innerHTML = '';
+    container.innerHTML = ''; // Clear existing tabs
+
+    if (!files || files.length === 0) {
+        container.innerHTML = '<p class="no-files">No files uploaded yet.</p>';
+        return;
+    }
 
     files.forEach(filename => {
         const tab = document.createElement('div');
-        tab.className = 'file-tab';
+        tab.classList.add('file-tab');
 
-        // File icon removed - no longer needed
+        // File name
+        const nameSpan = document.createElement('span');
+        nameSpan.classList.add('file-name');
+        nameSpan.textContent = filename;
+        tab.appendChild(nameSpan);
 
-        const name = document.createElement('span');
-        name.className = 'file-name';
-        name.textContent = filename;
+        // Delete button
+        const deleteBtn = document.createElement('button');
+        deleteBtn.classList.add('delete-btn');
+        deleteBtn.textContent = '×';
+        deleteBtn.title = `Delete ${filename}`;
+        deleteBtn.onclick = () => deleteFileHandler(filename);
+        tab.appendChild(deleteBtn);
 
-        const btn = document.createElement('button');
-        btn.className = 'delete-btn';
-        btn.textContent = '✕';
-        btn.addEventListener('click', () => deleteFile(filename));
-
-        // Only append name and button (no icon)
-        tab.appendChild(name);
-        tab.appendChild(btn);
         container.appendChild(tab);
     });
 }
 
+/* =============================================
+   Delete File  (/delete-file)
+   ============================================= */
+
 /**
- * Sends a DELETE request to remove a file, then refreshes the file list.
- * No confirmation dialog is shown (by design).
+ * Sends a DELETE request to remove a file, then refreshes the list.
  * @param {string} filename
  */
-async function deleteFile(filename) {
+async function deleteFileHandler(filename) {
+    // if (!confirm(`Are you sure you want to delete "${filename}"?`)) {
+    //     return;
+    // }
+
     const statusEl = document.getElementById('uploadStatus');
     // Visually mark the tab as being deleted
     const tabs = document.querySelectorAll('.file-tab');
@@ -325,33 +389,22 @@ async function deleteFile(filename) {
             setStatus(statusEl, `Error deleting file: ${data.error || 'An unexpected error occurred.'}`, 'error');
         }
     } catch (error) {
-        console.error('Delete error:', error);
-        setStatus(statusEl, 'Network error. Please try again.', 'error');
-    } finally {
-        loadFiles();
+        setStatus(statusEl, `Network error while deleting file: ${error.message}`, 'error');
     }
-}
 
-/**
- * Escapes special HTML characters to prevent XSS when inserting filenames into the DOM.
- * @param {string} text
- * @returns {string}
- */
-function escapeHtml(text) {
-    const map = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;'
-    };
-    return text.replace(/[&<>"']/g, m => map[m]);
+    // Refresh the file list after a short delay
+    setTimeout(() => {
+        loadFiles();
+        // Clear success/error message after displaying files
+        setTimeout(() => setStatus(statusEl, '', ''), 3000);
+    }, 500);
 }
 
 /* =============================================
-   Initialization
+   Page Load
    ============================================= */
 
-document.addEventListener('DOMContentLoaded', () => {
+// Load the file list when the page loads
+window.addEventListener('DOMContentLoaded', () => {
     loadFiles();
 });

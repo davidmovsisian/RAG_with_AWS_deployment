@@ -127,6 +127,35 @@ def delete_file():
         }), 500
     return jsonify({"message": f"File {filename} deleted successfully"}), 200
 
+# this endpoint is used by the frontend to check if the uploaded files are indexed and ready for search
+@app.route("/check-files-ready", methods=["POST"])
+def check_files_ready():
+    """Check if files are indexed in OpenSearch."""
+    if worker is None:  
+        return jsonify({"error": "Worker not initialized"}), 503
+    
+    data = request.get_json()
+    filenames = data.get("files", [])
+    
+    if not filenames:
+        return jsonify({"error": "No files provided"}), 400
+    
+    results = {}
+    for filename in filenames:
+        try:
+            indexed = worker.opensearch_client.check_document_indexed(filename)
+            results[filename] = indexed
+        except Exception as e:
+            print(f"Error checking status for {filename}: {e}")
+            results[filename] = False
+    
+    all_ready = all(results.values())
+    
+    return jsonify({
+        "all_ready": all_ready,
+        "files": results
+    }), 200
+
 #application entry point - initialize worker and start Flask app 
 init_worker()
 

@@ -157,6 +157,15 @@ class OpenSearchClient:
             print(f"Error searching by metadata: {e}")
             return []
     
+    def check_document_indexed(self, filename: str) -> bool:
+        """Check if a document is fully indexed in OpenSearch by checking if any chunks exist."""
+        try:
+            results = self.search_by_metadata(field="filename", value=filename, size=1)
+            return len(results) > 0
+        except Exception as e:
+            print(f"Error checking document status: {e}")
+            return False
+        
     def delete_document(self, doc_id: str) -> bool:
         """Delete a document by ID from the index."""
         try:
