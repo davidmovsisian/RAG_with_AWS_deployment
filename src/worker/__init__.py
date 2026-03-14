@@ -1,5 +1,5 @@
-from .rag_worker import RagWorker
+from .rag_worker import ApiWorker
 from .sqs_worker import SQSWorker
 from .document_processor import DocumentProcessor
 
-__all__ = ["RagWorker", "SQSWorker", "DocumentProcessor"]
+__all__ = ["ApiWorker", "SQSWorker", "DocumentProcessor"]

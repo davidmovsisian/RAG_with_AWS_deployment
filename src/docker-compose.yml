@@ -1,24 +1,32 @@
 
 services:
-  rag-app:
+  api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.api
     image: rag-app:1.0
-    container_name: rag-application
+    container_name: rag-api
     env_file:
       - .env
     environment:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
-        # Gunicorn configuration
-      - GUNICORN_WORKERS=2
-      - GUNICORN_THREADS=2
-      - GUNICORN_WORKER_CLASS=gthread
-      - GUNICORN_TIMEOUT=120
-      - GUNICORN_LOG_LEVEL=info
-      - GEMINI_POOL_SIZE=4  # Should be >= workers * threads
     ports:
       - "5000:5000"
+    restart: unless-stopped 
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    image: rag-worker:1.0
+    container_name: rag-worker
+    env_file:
+      - .env
+    environment:
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     restart: unless-stopped
+    deploy:
+      replicas: 2 # Scale to 2 worker instances

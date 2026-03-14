@@ -1,9 +1,9 @@
 import os
 from flask import Flask, request, jsonify, send_from_directory
 from dotenv import load_dotenv
-from worker.rag_worker import RagWorker
-import atexit
-import signal
+from src.worker.api_worker import ApiWorker
+# import atexit
+# import signal
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
@@ -14,23 +14,20 @@ worker = None
 def init_worker():
     global worker
     if worker is None:
-        worker = RagWorker()
-        worker.start_sqs_worker()
-        print("RagWorker initialized and SQS worker started")
+        worker = ApiWorker()
 
 
-def shutdown_handler(*_args):
-    global worker
-    if worker:
-        print("Shutting down worker...")
-        worker.stop_sqs_worker()
-        print("Worker stopped")
+# def shutdown_handler(*_args):
+#     global worker
+#     if worker:
+#         worker.stop()  # Implement a stop method in ApiWorker
+#         print("Worker stopped")
 
 
 # Register shutdown handlers
-atexit.register(shutdown_handler)
-signal.signal(signal.SIGINT, shutdown_handler)
-signal.signal(signal.SIGTERM, shutdown_handler)
+# atexit.register(shutdown_handler)
+# signal.signal(signal.SIGINT, shutdown_handler)
+# signal.signal(signal.SIGTERM, shutdown_handler)
 
 @app.route('/')
 def index():
@@ -106,7 +103,11 @@ def upload_file():
                     "error": f"An error occurred while uploading the file {f.filename}",
                     "details": str(e)
                 }), 500
-    return jsonify({"message": "Files uploaded successfully"})
+        else:
+            print(f"Unsupported file type for file: {f.filename}")
+            return jsonify({
+                "error": f"Unsupported file type for file: {f.filename}. Only .txt and .pdf are allowed."}), 400
+    return jsonify({"message": "Files uploaded successfully", "files": uploaded_files}), 200
 
 @app.route("/delete-file", methods=["DELETE"])
 def delete_file():
