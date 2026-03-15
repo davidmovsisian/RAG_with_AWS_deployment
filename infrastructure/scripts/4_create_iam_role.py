@@ -36,7 +36,7 @@ def get_account_id() -> str:
 
 
 def create_iam_role(role_name: str, profile_name: str, bucket_name: str,
-                    queue_name: str, opensearch_domain: str,
+                    queue_name: str, opensearch_collection: str,
                     region: str, account_id: str) -> bool:
     """Create IAM role with inline policy and instance profile."""
     iam = boto3.client('iam')
@@ -73,7 +73,6 @@ def create_iam_role(role_name: str, profile_name: str, bucket_name: str,
         'AWS_REGION': region,
         'ACCOUNT_ID': account_id,
         'QUEUE_NAME': queue_name,
-        'OPENSEARCH_DOMAIN': opensearch_domain,
     }
     try:
         permissions_policy = load_policy_template('iam-permissions-policy.json', replacements)
@@ -139,11 +138,11 @@ def main():
     profile_name = os.environ.get('IAM_INSTANCE_PROFILE', f"{PROJECT_NAME}-ec2-profile-{TEAM_NAME}")
     bucket_name = os.environ.get('S3_BUCKET', f"{PROJECT_NAME}-docs-{TEAM_NAME}")
     queue_name = os.environ.get('SQS_QUEUE_NAME', f"{PROJECT_NAME}-docs-queue-{TEAM_NAME}")
-    opensearch_domain = os.environ.get('OPENSEARCH_DOMAIN', f"{PROJECT_NAME}-{TEAM_NAME}")
+    opensearch_collection = os.environ.get('OPENSEARCH_COLLECTION', f"{PROJECT_NAME}-{TEAM_NAME}")
 
     success = create_iam_role(
         role_name, profile_name, bucket_name, queue_name,
-        opensearch_domain, AWS_REGION, account_id
+        opensearch_collection, AWS_REGION, account_id
     )
     sys.exit(0 if success else 1)
 

@@ -18,7 +18,7 @@ STEPS = [
     (2, '2_create_sqs_queue.py',    'Create SQS queue'),
     (3, '3_setup_s3_event.py',      'Setup S3 event notification'),
     (4, '4_create_iam_role.py',     'Create IAM role'),
-    (5, '5_setup_opensearch.py',    'Setup OpenSearch domain'),
+    (5, '5_setup_opensearch.py',    'Setup OpenSearch Serverless collection'),
     (6, '6_launch_ec2.py',          'Launch EC2 instance'),
 ]
 

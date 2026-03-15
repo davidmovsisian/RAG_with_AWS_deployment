@@ -27,7 +27,7 @@ def confirm_deletion() -> bool:
     print(f"  - Security group: {PROJECT_NAME}-sg-{TEAM_NAME}")
     print(f"  - Instance profile: {PROJECT_NAME}-ec2-profile-{TEAM_NAME}")
     print(f"  - IAM role: {PROJECT_NAME}-ec2-role-{TEAM_NAME}")
-    print(f"  - OpenSearch domain: {PROJECT_NAME}-{TEAM_NAME}")
+    print(f"  - OpenSearch Serverless collection: {PROJECT_NAME}-{TEAM_NAME}")
     print(f"  - SQS queue: {PROJECT_NAME}-docs-queue-{TEAM_NAME}")
     print(f"  - S3 bucket: {PROJECT_NAME}-docs-{TEAM_NAME}")
     answer = input("\nType 'yes' to confirm: ").strip().lower()
@@ -120,27 +120,57 @@ def delete_iam_role(iam, role_name: str) -> None:
             print(f"  Error deleting IAM role: {e}")
 
 
-def delete_opensearch_domain(os_client, domain_name: str) -> None:
-    """Delete OpenSearch domain and wait for completion."""
-    print(f"\n[5] Deleting OpenSearch domain: {domain_name}")
+def delete_opensearch_serverless_collection(collection_name: str, region: str) -> None:
+    """Delete OpenSearch Serverless collection and associated policies."""
+    print(f"\n[4] Deleting OpenSearch Serverless collection: {collection_name}")
+    client = boto3.client('opensearchserverless', region_name=region)
+    
     try:
-        os_client.delete_domain(DomainName=domain_name)
-        print(f"  Deletion requested. Waiting for domain to be removed...")
-        while True:
-            time.sleep(30)
+        # Delete collection
+        client.delete_collection(name=collection_name)
+        print(f"  Collection {collection_name} deletion initiated. Waiting...")
+        
+        # Wait for deletion (max 5 minutes)
+        elapsed = 0
+        while elapsed < 300:
+            time.sleep(10)
+            elapsed += 10
             try:
-                os_client.describe_domain(DomainName=domain_name)
-                print("  Domain still exists, waiting...")
-            except ClientError as e:
-                if e.response['Error']['Code'] == 'ResourceNotFoundException':
-                    print(f"  Domain {domain_name} deleted.")
+                response = client.batch_get_collection(names=[collection_name])
+                if not response['collectionDetails']:
+                    print(f"  Collection deleted after {elapsed} seconds.")
                     break
-                raise
+                status = response['collectionDetails'][0]['status']
+                print(f"  Status: {status} ({elapsed}s elapsed)")
+            except ClientError:
+                print(f"  Collection deleted after {elapsed} seconds.")
+                break
     except ClientError as e:
         if e.response['Error']['Code'] == 'ResourceNotFoundException':
-            print(f"  Domain {domain_name} not found, skipping.")
+            print(f"  Collection {collection_name} not found, skipping.")
         else:
-            print(f"  Error deleting domain: {e}")
+            print(f"  Error deleting collection: {e}")
+    
+    # Delete associated policies
+    for policy_type, policy_name_suffix in [
+        ('data', '-access'),
+        ('network', '-network'),
+        ('encryption', '-encryption')
+    ]:
+        policy_name = f"{collection_name}{policy_name_suffix}"
+        try:
+            if policy_type == 'data':
+                client.delete_access_policy(name=policy_name, type=policy_type)
+            elif policy_type == 'network':
+                client.delete_security_policy(name=policy_name, type=policy_type)
+            elif policy_type == 'encryption':
+                client.delete_encryption_policy(name=policy_name, type=policy_type)
+            print(f"  Deleted {policy_type} policy: {policy_name}")
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'ResourceNotFoundException':
+                print(f"  Policy {policy_name} not found, skipping.")
+            else:
+                print(f"  Error deleting {policy_type} policy: {e}")
 
 
 def remove_s3_event_notification(s3, bucket_name: str) -> None:
@@ -208,7 +238,7 @@ def main():
     sg_name = f"{PROJECT_NAME}-sg-{TEAM_NAME}"
     profile_name = os.environ.get('IAM_INSTANCE_PROFILE', f"{PROJECT_NAME}-ec2-profile-{TEAM_NAME}")
     role_name = os.environ.get('IAM_ROLE_NAME', f"{PROJECT_NAME}-ec2-role-{TEAM_NAME}")
-    domain_name = os.environ.get('OPENSEARCH_DOMAIN', f"{PROJECT_NAME}-{TEAM_NAME}")
+    collection_name = os.environ.get('OPENSEARCH_COLLECTION', f"{PROJECT_NAME}-{TEAM_NAME}")
     queue_name = os.environ.get('SQS_QUEUE_NAME', f"{PROJECT_NAME}-docs-queue-{TEAM_NAME}")
     bucket_name = os.environ.get('S3_BUCKET', f"{PROJECT_NAME}-docs-{TEAM_NAME}")
 
@@ -223,7 +253,7 @@ def main():
     delete_security_group(ec2, sg_name)
     delete_instance_profile(iam, profile_name, role_name)
     delete_iam_role(iam, role_name)
-    delete_opensearch_domain(os_client, domain_name)
+    delete_opensearch_serverless_collection(collection_name, AWS_REGION)
     remove_s3_event_notification(s3_client, bucket_name)
     delete_sqs_queue(sqs, queue_name)
     empty_and_delete_s3_bucket(s3_resource, s3_client, bucket_name)

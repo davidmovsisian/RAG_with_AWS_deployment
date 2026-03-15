@@ -45,7 +45,7 @@ This RAG system follows a microservices architecture with two main workers: **AP
         ▼                     ▼            ▼
    ┌────────┐          ┌─────────────┐  ┌──────────────┐
    │   S3   │          │  OpenSearch │  │ Gemini API   │
-   │ Bucket │◄─────┐   │   Domain    │  │ (Embedding & │
+   │ Bucket │◄─────┐   │  Collection │  │ (Embedding & │
    └────┬───┘      │   └─────────────┘  │     LLM)     │
         │          │                    └──────────────┘
         │ Event    │
@@ -132,7 +132,7 @@ Automated AWS resource provisioning:
 2. `2_create_sqs_queue.py` - SQS queue with S3 permissions
 3. `3_setup_s3_event.py` - S3 event notifications to SQS
 4. `4_create_iam_role.py` - EC2 IAM role with permissions
-5. `5_setup_opensearch.py` - OpenSearch domain (10-15 min)
+5. `5_setup_opensearch.py` - OpenSearch collection 
 6. `6_launch_ec2.py` - EC2 instance with setup scripts
 
 ---
@@ -144,7 +144,7 @@ Automated AWS resource provisioning:
 | **Frontend** | HTML, CSS, Vanilla JavaScript |
 | **Backend API** | Python Flask |
 | **Background Worker** | Python (SQS polling) |
-| **Vector Database** | AWS OpenSearch Service (KNN) |
+| **Vector Database** | AWS OpenSearch Serverless (VECTORSEARCH) |
 | **Storage** | AWS S3 |
 | **Message Queue** | AWS SQS |
 | **Compute** | AWS EC2 (t3.small) |
@@ -234,10 +234,9 @@ This will create:
 - SQS queue
 - S3 event notifications
 - IAM role for EC2
-- OpenSearch domain (~15 minutes)
+- OpenSearch collection 
 - EC2 instance
 
-**Note:** OpenSearch domain creation takes 10-15 minutes. Monitor progress:
 
 ```bash
 python setup.py status
@@ -344,7 +343,7 @@ python setup.py cleanup --env ../.env
 | `TEAM_NAME` | Unique identifier for resources | Required |
 | `S3_BUCKET` | S3 bucket name | `{PROJECT_NAME}-docs-{TEAM_NAME}` |
 | `SQS_QUEUE_URL` | Full SQS queue URL | Auto-generated |
-| `OPENSEARCH_ENDPOINT` | OpenSearch domain endpoint | Auto-generated |
+| `OPENSEARCH_ENDPOINT` | OpenSearch collection endpoint | Auto-generated |
 | `GEMINI_API_KEY` | Google Gemini API key | Required |
 | `EMBEDDING_DIMENSION` | Embedding vector dimension | `768` |
 | `GEMINI_POOL_SIZE` | Connection pool size | `5` |
@@ -358,7 +357,10 @@ python setup.py cleanup --env ../.env
 
 ```bash
 # Check OpenSearch endpoint
-aws opensearch describe-domain --domain-name rag-class-your-team-name
+aws opensearchserverless batch-get-collection --names rag-class-your-team-name
+
+# Verify data access policy
+aws opensearchserverless get-access-policy --name rag-class-your-team-name-access --type data
 
 # Verify IAM role has permissions
 aws iam get-role --role-name rag-class-ec2-role-your-team-name

@@ -1,7 +1,6 @@
 import os
-from datetime import datetime
 from typing import Any, Dict, List
-
+import boto3
 from opensearchpy import OpenSearch, RequestsHttpConnection
 from requests_aws4auth import AWS4Auth
 
@@ -10,44 +9,27 @@ class OpenSearchClient:
     def __init__(self):
         endpoint = os.getenv("OPENSEARCH_ENDPOINT", "")
         self.index_name = os.getenv("OPENSEARCH_INDEX_NAME", "rag-documents")
-        username = os.getenv("OPENSEARCH_USERNAME")
-        password = os.getenv("OPENSEARCH_PASSWORD")
-
         # Parse host and port from endpoint
         host = endpoint.replace("https://", "").replace("http://", "")
-        use_ssl = endpoint.startswith("https://")
+        # use_ssl = endpoint.startswith("https://")
 
-        if username and password:
-            # Basic auth (standalone OpenSearch)
-            self.client = OpenSearch(
-                hosts=[{"host": host, "port": 443 if use_ssl else 9200}],
-                http_auth=(username, password),
-                use_ssl=use_ssl,
-                verify_certs=use_ssl,
-                connection_class=RequestsHttpConnection,
-            )
-            print("OpenSearchClient initialized with basic auth")
-        else:
-            # AWS IAM auth
-            import boto3
-
-            region = os.getenv("AWS_REGION", "us-east-1")
-            credentials = boto3.Session().get_credentials()
-            aws_auth = AWS4Auth(
-                credentials.access_key,
-                credentials.secret_key,
-                region,
-                "es",
-                session_token=credentials.token,
-            )
-            self.client = OpenSearch(
-                hosts=[{"host": host, "port": 443}],
-                http_auth=aws_auth,
-                use_ssl=True,
-                verify_certs=True,
-                connection_class=RequestsHttpConnection,
-            )
-            print("OpenSearchClient initialized with AWS IAM auth")
+        region = os.getenv("AWS_REGION", "us-east-1")
+        credentials = boto3.Session().get_credentials()
+        aws_auth = AWS4Auth(
+            credentials.access_key,
+            credentials.secret_key,
+            region,
+            "aoss", # Use "aoss" for OpenSearch Serverless, "es" for managed domains
+            session_token=credentials.token,
+        )
+        self.client = OpenSearch(
+            hosts=[{"host": host, "port": 443}],
+            http_auth=aws_auth,
+            use_ssl=True,
+            verify_certs=True,
+            connection_class=RequestsHttpConnection,
+        )
+        print("OpenSearchClient initialized with AWS IAM auth")
 
     def create_index(self, dimension: int = None) -> bool:
         """Create a KNN-enabled index with HNSW algorithm."""
