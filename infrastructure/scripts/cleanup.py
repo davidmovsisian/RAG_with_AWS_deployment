@@ -124,10 +124,16 @@ def delete_opensearch_serverless_collection(collection_name: str, region: str) -
     """Delete OpenSearch Serverless collection and associated policies."""
     print(f"\n[4] Deleting OpenSearch Serverless collection: {collection_name}")
     client = boto3.client('opensearchserverless', region_name=region)
-    
+    # Resolve collection ID from name, then delete by ID
+    response = client.batch_get_collection(names=[collection_name])
+    collection_details = response.get('collectionDetails', [])
+    if not collection_details:
+        print(f"  Collection {collection_name} not found, skipping.")
+        return
+    collection_id = collection_details[0]['id']
     try:
         # Delete collection
-        client.delete_collection(name=collection_name)
+        client.delete_collection(id=collection_id)
         print(f"  Collection {collection_name} deletion initiated. Waiting...")
         
         # Wait for deletion (max 5 minutes)
@@ -154,8 +160,7 @@ def delete_opensearch_serverless_collection(collection_name: str, region: str) -
     # Delete associated policies
     for policy_type, policy_name_suffix in [
         ('data', '-access'),
-        ('network', '-network'),
-        ('encryption', '-encryption')
+        ('network', '-network')
     ]:
         policy_name = f"{collection_name}{policy_name_suffix}"
         try:
@@ -163,8 +168,6 @@ def delete_opensearch_serverless_collection(collection_name: str, region: str) -
                 client.delete_access_policy(name=policy_name, type=policy_type)
             elif policy_type == 'network':
                 client.delete_security_policy(name=policy_name, type=policy_type)
-            elif policy_type == 'encryption':
-                client.delete_encryption_policy(name=policy_name, type=policy_type)
             print(f"  Deleted {policy_type} policy: {policy_name}")
         except ClientError as e:
             if e.response['Error']['Code'] == 'ResourceNotFoundException':
