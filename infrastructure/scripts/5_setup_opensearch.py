@@ -35,9 +35,19 @@ def create_opensearch_serverless_collection(
 ) -> bool:
     """Create OpenSearch Serverless collection with encryption, network, and data access policies."""
     client = boto3.client('opensearchserverless', region_name=region)
-    
+    sts_client = boto3.client('sts') # For getting a caller identity for local development access
+
     role_arn = f"arn:aws:iam::{account_id}:role/{role_name}"
     
+    # Get current caller identity for local development access
+    caller_identity = sts_client.get_caller_identity()
+    caller_arn = caller_identity['Arn']
+
+    principal_arns = [role_arn]
+    if caller_arn != role_arn:
+        # add caller ARN to principal list for local development
+        principal_arns.append(caller_arn)
+        
     # Step 1: Create encryption policy (required for serverless)
     encryption_policy_name = f"{collection_name}-encryption"
     encryption_policy = {
@@ -125,7 +135,7 @@ def create_opensearch_serverless_collection(
                     ]
                 }
             ],
-            "Principal": [role_arn],
+            "Principal": principal_arns,
             "Description": f"Data access policy for {collection_name}"
         }
     ]

@@ -20,17 +20,7 @@
       "Sid": "OpenSearchServerlessAccess",
       "Effect": "Allow",
       "Action": [
-        "aoss:APIAccessAll",
-        "aoss:CreateCollectionItems",
-        "aoss:UpdateCollectionItems",
-        "aoss:DescribeCollectionItems",
-        "aoss:ReadDocument",
-        "aoss:WriteDocument",
-        "aoss:CreateIndex",
-        "aoss:UpdateIndex",
-        "aoss:DescribeIndex",
-        "aoss:DeleteIndex"
-      ],
+        "aoss:APIAccessAll"      ],
       "Resource": "arn:aws:aoss:{{AWS_REGION}}:{{ACCOUNT_ID}}:collection/*"
     },
     {
