@@ -108,7 +108,6 @@ def create_opensearch_serverless_collection(
                     "Resource": [f"collection/{collection_name}"],
                     "Permission": [
                         "aoss:CreateCollectionItems",
-                        "aoss:DeleteCollectionItems",
                         "aoss:UpdateCollectionItems",
                         "aoss:DescribeCollectionItems"
                     ]
@@ -117,17 +116,17 @@ def create_opensearch_serverless_collection(
                     "ResourceType": "index",
                     "Resource": [f"index/{collection_name}/*"],
                     "Permission": [
+                        "aoss:CreateIndex",
+                        "aoss:UpdateIndex",
+                        "aoss:DescribeIndex",
                         "aoss:ReadDocument",
                         "aoss:WriteDocument",
-                        "aoss:DeleteDocument",
-                        "aoss:CreateIndex",
-                        "aoss:DeleteIndex",
-                        "aoss:UpdateIndex",
-                        "aoss:DescribeIndex"
+                        "aoss:DeleteIndex"
                     ]
                 }
             ],
-            "Principal": [role_arn]
+            "Principal": [role_arn],
+            "Description": f"Data access policy for {collection_name}"
         }
     ]
     
