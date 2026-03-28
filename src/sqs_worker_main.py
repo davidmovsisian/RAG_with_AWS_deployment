@@ -2,12 +2,9 @@ import os
 import signal
 import boto3
 from dotenv import load_dotenv
-from utils.gemini_client import GeminiClient
-from utils.opensearch_client import OpenSearchClient
 from utils.s3_client import S3Client
-from utils.chunking import TextChunker
-from worker.document_processor import DocumentProcessor
 from worker.sqs_worker import SQSWorker
+from utils.bedrock_client import BedrockClient
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
@@ -19,19 +16,9 @@ def main():
     sqs_client = boto3.client("sqs", region_name=region)
 
     s3_client = S3Client()
-    gemini_client = GeminiClient(pool_size=int(os.getenv("GEMINI_POOL_SIZE", "5")))
-    opensearch_client = OpenSearchClient()
-    text_chunker = TextChunker()
+    bedrock_client = BedrockClient()
 
-    opensearch_client.create_index()
-
-    document_processor = DocumentProcessor(
-        gemini_client,
-        opensearch_client,
-        text_chunker
-    )
-
-    sqs_worker = SQSWorker(sqs_client, s3_client, document_processor)
+    sqs_worker = SQSWorker(sqs_client, s3_client, bedrock_client)
 
     # Handle shutdown gracefully
     def shutdown_handler(signum, frame):
@@ -44,7 +31,6 @@ def main():
 
     # Start polling loop (blocking)
     sqs_worker.poll_and_process()
-
 
 if __name__ == "__main__":
     main()

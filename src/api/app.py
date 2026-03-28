@@ -2,8 +2,6 @@ import os
 from flask import Flask, request, jsonify, send_from_directory
 from dotenv import load_dotenv
 from worker.api_worker import ApiWorker
-# import atexit
-# import signal
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
@@ -16,32 +14,11 @@ def init_worker():
     if worker is None:
         worker = ApiWorker()
 
-
-# def shutdown_handler(*_args):
-#     global worker
-#     if worker:
-#         worker.stop()  # Implement a stop method in ApiWorker
-#         print("Worker stopped")
-
-
-# Register shutdown handlers
-# atexit.register(shutdown_handler)
-# signal.signal(signal.SIGINT, shutdown_handler)
-# signal.signal(signal.SIGTERM, shutdown_handler)
-
 @app.route('/')
 def index():
     if worker is None:  
         return jsonify({"error": "Worker not initialized"}), 503
     return send_from_directory(app.static_folder, 'index.html')
-
-@app.route("/health", methods=["GET"])
-def health_check():
-    if worker is None:  
-        return jsonify({"error": "Worker not initialized"}), 503
-    status = worker.health_check()
-    http_status = 200 if status["status"] == "healthy" else 503
-    return jsonify(status), http_status
 
 # return list of indexed documents
 @app.route("/list-files", methods=["GET"])
@@ -95,7 +72,7 @@ def upload_file():
         if f.filename and f.filename.lower().endswith(SUPPORTED_EXTENSIONS):
             print(f"Uploading file: {f.filename}")
             try:
-                worker.s3_client.upload_file(f)
+                worker.upload_file(f)
                 uploaded_files.append(f.filename)
             except Exception as e:
                 print(f"Error uploading file: {e}")
@@ -118,7 +95,7 @@ def delete_file():
     if not filename:
         return jsonify({"error": "Filename is required"}), 400
     try:
-        worker.s3_client.delete_file(filename)
+        worker.delete_file(filename)
     except Exception as e:
         print(f"Error deleting file: {e}")
         return jsonify({
@@ -130,30 +107,30 @@ def delete_file():
 # this endpoint is used by the frontend to check if the uploaded files are indexed and ready for search
 @app.route("/check-files-ready", methods=["POST"])
 def check_files_ready():
-    """Check if files are indexed in OpenSearch."""
+    """Check if files are synced."""
     if worker is None:  
         return jsonify({"error": "Worker not initialized"}), 503
     
     data = request.get_json()
-    filenames = data.get("files", [])
+    job_ids = data.get("job_ids", [])
     
-    if not filenames:
-        return jsonify({"error": "No files provided"}), 400
+    if not job_ids:
+        return jsonify({"error": "No job IDs provided"}), 400
     
     results = {}
-    for filename in filenames:
+    for job_id in job_ids:
         try:
-            indexed = worker.opensearch_client.check_document_indexed(filename)
-            results[filename] = indexed
+            status = worker.check_sync_completion(job_id)
+            results[job_id] = (status == "COMPLETE")
         except Exception as e:
-            print(f"Error checking status for {filename}: {e}")
-            results[filename] = False
+            print(f"Error checking status for {job_id}: {e}")
+            results[job_id] = False
     
     all_ready = all(results.values())
     
     return jsonify({
         "all_ready": all_ready,
-        "files": results
+        "job_statuses": results
     }), 200
 
 #application entry point - initialize worker and start Flask app 

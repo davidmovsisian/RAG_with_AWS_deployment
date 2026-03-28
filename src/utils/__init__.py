@@ -4,4 +4,4 @@ from .opensearch_client import OpenSearchClient
 from .s3_client import S3Client
 from .pdf_extractor import PDFExtractor
 
-__all__ = ["GeminiClient", "OpenSearchClient", "TextChunker", "S3Client", "PDFExtractor"]
+__all__ = ["GeminiClient", "OpenSearchClient", "TextChunker", "S3Client", "PDFExtractor", "BedrockClient"]
