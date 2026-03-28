@@ -10,9 +10,9 @@ class S3Client:
         print(f"S3Client initialized (bucket={self.bucket_name})")
 
     def upload_file(self, file: str):
-        content = file.read()
+        file.seek(0)
         key = file.filename
-        self.client.put_object(Bucket=self.bucket_name, Key=key, Body=content)
+        self.client.upload_fileobj(file, self.bucket_name, key)
         print(f"Uploaded content -> s3://{self.bucket_name}/{key}")
     
     def delete_file(self, key: str):

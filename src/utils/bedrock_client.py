@@ -1,7 +1,6 @@
 import os
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
-import time
 import json
 
 class BedrockClient:
@@ -65,7 +64,6 @@ class BedrockClient:
             }
         }
     )
-    
         # Trigger the sync
         response = self.client_agent.start_ingestion_job(knowledgeBaseId=self.kb_id, dataSourceId=self.data_source_id)
         job_id = response['ingestionJob']['ingestionJobId']
@@ -111,7 +109,6 @@ class BedrockClient:
                 }
             }
         )
-
             results = response.get("retrievalResults", [])
             context = ""
             for idx, res in enumerate(results, start=1):

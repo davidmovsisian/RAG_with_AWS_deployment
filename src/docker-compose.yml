@@ -15,18 +15,3 @@ services:
     ports:
       - "5000:5000"
     restart: unless-stopped 
-  sqs_worker:
-    build:
-      context: .
-      dockerfile: Dockerfile.sqs_worker
-    image: rag-sqs_worker:1.0
-    # container_name: rag-sqs_worker
-    env_file:
-      - .env
-    environment:
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-    restart: unless-stopped
-    deploy:
-      replicas: 1 # Scale to 1 worker instance
