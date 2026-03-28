@@ -63,27 +63,30 @@ def upload_file():
         return jsonify({"error": "Worker not initialized"}), 503
     if "files" not in request.files:
         return jsonify({"error": "No files in request"}), 400
-    files = request.files.getlist("files")
 
     SUPPORTED_EXTENSIONS = ('.txt', '.pdf')
     uploaded_files = []
 
-    for f in files:
-        if f.filename and f.filename.lower().endswith(SUPPORTED_EXTENSIONS):
-            print(f"Uploading file: {f.filename}")
-            try:
-                worker.upload_file(f)
-                uploaded_files.append(f.filename)
-            except Exception as e:
-                print(f"Error uploading file: {e}")
-                return jsonify({
-                    "error": f"An error occurred while uploading the file {f.filename}",
-                    "details": str(e)
-                }), 500
-        else:
-            print(f"Unsupported file type for file: {f.filename}")
-            return jsonify({
-                "error": f"Unsupported file type for file: {f.filename}. Only .txt and .pdf are allowed."}), 400
+    files = request.files.getlist("files")
+    filtered_files = [f for f in files if f.filename.lower().endswith(SUPPORTED_EXTENSIONS)]
+    bad_files = [f for f in files if not f.filename.lower().endswith(SUPPORTED_EXTENSIONS)]
+    
+    try:
+        if filtered_files:
+            worker.upload_files(filtered_files)
+            uploaded_files.append([f.filename for f in filtered_files])
+    except Exception as e:
+        print(f"Error uploading file: {e}")
+        return jsonify({
+            "error": f"An error occurred while uploading the files",
+            "details": str(e)
+        }), 500
+    
+    if bad_files:        
+        print(f"Unsupported file type for files: {[f.filename for f in bad_files]}")
+        return jsonify({
+            "error": f"Unsupported file type for files: {[f.filename for f in bad_files]}"}), 400
+    
     return jsonify({"message": "Files uploaded successfully", "files": uploaded_files}), 200
 
 @app.route("/delete-file", methods=["DELETE"])

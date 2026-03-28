@@ -10,9 +10,13 @@ class BedrockClient:
         self.data_source_id = os.getenv("DATA_SOURCE_ID", "")
         self.s3_bucket_arn = os.getenv("S3_BUCKET_ARN", "")
         self.model_id = os.getenv("MODEL_ID", "")
+        # 1. Runtime for Knowledge Bases and Retrieval-Augmented Generation
         self.client_runtime = boto3.client("bedrock-agent-runtime", region_name=self.region)
+        # 2. Agent for Syncing/Managing
         self.client_agent = boto3.client('bedrock-agent', region_name=self.region)
-        
+        # 3. Standard Runtime for direct Model Invocation (Claude)
+        self.client_model = boto3.client("bedrock-runtime", region_name=self.region)
+
         print("Initializing BedrockClient...")
 
     def retrieve_and_generate(self, query_text, top_k=3) -> str:
@@ -21,6 +25,7 @@ class BedrockClient:
         from a knowledge base and generate an answer.    
         """
         try:
+            model_arn = f"arn:aws:bedrock:{self.region}::foundation-model/{self.model_id}"
             response = self.client_runtime.retrieve_and_generate(
                 input={
                     "text": query_text
@@ -29,7 +34,7 @@ class BedrockClient:
                     "type": "KNOWLEDGE_BASE",
                     "knowledgeBaseConfiguration": {
                         "knowledgeBaseId": self.kb_id,
-                        "modelArn": f"arn:aws:bedrock:{self.region}::foundation-model/{self.model_id}",
+                        "modelArn": model_arn,
                         "retrievalConfiguration": {
                             "vectorSearchConfiguration": {
                                 "numberOfResults": top_k
@@ -42,9 +47,7 @@ class BedrockClient:
             # Extract and print the generated output
             output_text = response.get("output", {}).get("text", "")
             # print("Generated Answer:\n", output_text)
-
             return output_text
-
         except (BotoCoreError, ClientError) as e:
             print(f"Error calling retrieve_and_generate: {e}")
             return None
@@ -67,32 +70,17 @@ class BedrockClient:
         # Trigger the sync
         response = self.client_agent.start_ingestion_job(knowledgeBaseId=self.kb_id, dataSourceId=self.data_source_id)
         job_id = response['ingestionJob']['ingestionJobId']
-        
         return job_id
 
     def check_for_sync_completion(self, job_id) -> str:
         """Check for the completion of the sync job"""
-
         response = self.client_agent.get_ingestion_job(
             knowledgeBaseId=self.kb_id,
             dataSourceId=self.data_source_id,
             ingestionJobId=job_id
         )
-        
         status = response['ingestionJob']['status']
         print(f"Current Status: {status}")
-        
-        # if status == 'COMPLETE':
-        #     print("Knowledge Base is synced and ready for queries!")
-        #     break
-        # elif status in ['FAILED', 'STOPPED']:
-        #     # If it fails, check the 'failureReasons' in the response
-        #     reason = response['ingestionJob'].get('failureReasons', ['Unknown error'])
-        #     print(f"Job ended with status: {status}. Reason: {reason}")
-        #     break
-        
-        # print(f"Ingestion job {job_id} ended with status: {status}")
-
         return status
 
     def retrieve_from_kb(self, retriev_equery):
@@ -115,7 +103,6 @@ class BedrockClient:
                 # print(f"Document {idx}: {res['content']['text']}\n")
                 context += f"{idx}: {res['content']['text']}\n"
             return context
-
         except (BotoCoreError, ClientError) as e:
             print(f"Error calling retrieve: {e}")
             return None
@@ -133,26 +120,12 @@ class BedrockClient:
         }
 
         try:
-            resp = self.client_runtime.invoke_model(modelId=self.model_id, body=json.dumps(body))
+            resp = self.client_model.invoke_model(modelId=self.model_id, body=json.dumps(body))
             payload = resp["body"].read() if hasattr(resp.get("body"), "read") else resp["body"]
             data = json.loads(payload)
 
-            # Anthropic messages return a list of content blocks; join any text blocks.
             parts = data.get("content", [])
             text = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
             return text.strip()
-
         except ClientError as e:
             raise RuntimeError(f"Bedrock InvokeModel failed: {e.response.get('Error', {}).get('Message')}") from e
-    
-# if __name__ == "__main__":
-#     bedrock_client = BedrockClient_()
-#     job_id = bedrock_client.sync_data(KNOWLEDGE_BASE_ID, DATA_SOURCE_ID, S3_BUCKET_ARN)
-#     bedrock_client.wait_for_sync_completion(KNOWLEDGE_BASE_ID, DATA_SOURCE_ID, job_id)
-
-#     answer = bedrock_client.retrieve_and_generate("When Movsesian David graduated BSc degree?")
-#     print(f"Answer: {answer}")
-#     context = bedrock_client.retrieve_from_kb("Movsesian David education.")
-#     print("Retrieved Context:\n", context)
-#     answer = bedrock_client.claude_complete("Give me three bullet points about why RAG is useful.")
-#     print(f"Answer: {answer}")

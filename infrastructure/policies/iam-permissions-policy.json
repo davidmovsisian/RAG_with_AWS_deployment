@@ -11,23 +11,38 @@
       ]
     },
     {
-      "Sid": "SQSAccess",
-      "Effect": "Allow",
-      "Action": ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
-      "Resource": "arn:aws:sqs:{{AWS_REGION}}:{{ACCOUNT_ID}}:{{QUEUE_NAME}}"
-    },
-    {
-      "Sid": "OpenSearchServerlessAccess",
+      "Sid": "S3ListBucketStatement",
       "Effect": "Allow",
       "Action": [
-        "aoss:APIAccessAll"      ],
-      "Resource": "arn:aws:aoss:{{AWS_REGION}}:{{ACCOUNT_ID}}:collection/*"
+          "s3:ListBucket"
+      ],
+      "Resource": [
+          "arn:aws:s3:::{{BUCKET_NAME}}"
+      ],
+      "Condition": {
+          "StringEquals": {
+              "aws:ResourceAccount": [
+                  "708623998652"
+              ]
+          }
+      }
     },
     {
-      "Sid": "TextractAccess",
-      "Effect": "Allow",
-      "Action": ["textract:DetectDocumentText", "textract:AnalyzeDocument"],
-      "Resource": "*"
-    }
+        "Sid": "S3GetObjectStatement",
+        "Effect": "Allow",
+        "Action": [
+            "s3:GetObject"
+        ],
+        "Resource": [
+            "arn:aws:s3:::{{BUCKET_NAME}}/data/*"
+        ],
+        "Condition": {
+            "StringEquals": {
+                "aws:ResourceAccount": [
+                    "708623998652"
+                ]
+            }
+        }
+    }  
   ]
 }
