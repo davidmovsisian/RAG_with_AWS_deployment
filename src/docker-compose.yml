@@ -3,7 +3,7 @@ services:
   api_worker:
     build:
       context: .
-      dockerfile: Dockerfile.api
+      dockerfile: Dockerfile
     image: rag-api:1.0
     container_name: rag-api
     env_file:

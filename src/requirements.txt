@@ -1,8 +1,7 @@
 boto3
-python-dotenv
-opensearch-py
+botocore
 requests-aws4auth
-google-genai
+python-dotenv
+typing-extensions
 flask
 gunicorn
-pypdf

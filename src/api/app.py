@@ -65,7 +65,6 @@ def upload_files():
         return jsonify({"error": "No files in request"}), 400
 
     SUPPORTED_EXTENSIONS = ('.txt', '.pdf')
-    uploaded_files = []
     
     files = request.files.getlist("files")
     if not files:
@@ -79,10 +78,10 @@ def upload_files():
     
     try:
         job_id = worker.upload_files(files)
-        uploaded_files.append([f.filename for f in files])
+        uploaded_filenames =[f.filename for f in files]
         return jsonify({
             "message": "Files uploaded successfully", 
-            "files": uploaded_files, 
+            "files": uploaded_filenames, 
             "job_id": job_id}), 200
     except Exception as e:
         print(f"Error uploading file: {e}")
@@ -131,7 +130,7 @@ def check_sync_completion():
         return jsonify({
             "job_id": job_id,
             "status": status,
-            "is_ready": status == "COMPLETED",
+            "is_ready": status == "COMPLETE",
             "is_failed": status in ["FAILED", "STOPPED"]
         }), 200
     except Exception as e:
