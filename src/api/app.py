@@ -57,8 +57,8 @@ def ask_question():
         return jsonify(answer), 400  
     return jsonify(answer), 200
 
-@app.route("/upload", methods=["POST"])
-def upload_file():
+@app.route("/upload-files", methods=["POST"])
+def upload_files():
     if worker is None:  
         return jsonify({"error": "Worker not initialized"}), 503
     if "files" not in request.files:
@@ -66,28 +66,30 @@ def upload_file():
 
     SUPPORTED_EXTENSIONS = ('.txt', '.pdf')
     uploaded_files = []
-
+    
     files = request.files.getlist("files")
-    filtered_files = [f for f in files if f.filename.lower().endswith(SUPPORTED_EXTENSIONS)]
+    if not files:
+        return jsonify({"error": "No files uploaded"}), 400
+    
     bad_files = [f for f in files if not f.filename.lower().endswith(SUPPORTED_EXTENSIONS)]
+    if bad_files:        
+        print(f"Unsupported file type for files: {[f.filename for f in bad_files]}")
+        return jsonify({
+            "error": f"Unsupported file type for files: {[f.filename for f in bad_files]}"}), 400
     
     try:
-        if filtered_files:
-            worker.upload_files(filtered_files)
-            uploaded_files.append([f.filename for f in filtered_files])
+        job_id = worker.upload_files(files)
+        uploaded_files.append([f.filename for f in files])
+        return jsonify({
+            "message": "Files uploaded successfully", 
+            "files": uploaded_files, 
+            "job_id": job_id}), 200
     except Exception as e:
         print(f"Error uploading file: {e}")
         return jsonify({
             "error": f"An error occurred while uploading the files",
             "details": str(e)
         }), 500
-    
-    if bad_files:        
-        print(f"Unsupported file type for files: {[f.filename for f in bad_files]}")
-        return jsonify({
-            "error": f"Unsupported file type for files: {[f.filename for f in bad_files]}"}), 400
-    
-    return jsonify({"message": "Files uploaded successfully", "files": uploaded_files}), 200
 
 @app.route("/delete-file", methods=["DELETE"])
 def delete_file():
@@ -98,43 +100,48 @@ def delete_file():
     if not filename:
         return jsonify({"error": "Filename is required"}), 400
     try:
-        worker.delete_file(filename)
+        job_id = worker.delete_file(filename)
+        return jsonify({
+            "message": f"File {filename} deleted successfully",
+            "job_id": job_id
+        }), 200
     except Exception as e:
         print(f"Error deleting file: {e}")
         return jsonify({
             "error": f"An error occurred while deleting the file {filename}",
             "details": str(e)
         }), 500
-    return jsonify({"message": f"File {filename} deleted successfully"}), 200
+    
 
-# this endpoint is used by the frontend to check if the uploaded files are indexed and ready for search
-@app.route("/check-files-ready", methods=["POST"])
-def check_files_ready():
-    """Check if files are synced."""
+# this endpoint is used to check sync status
+@app.route("/check_sync_completion", methods=["POST"])
+def check_sync_completion():
+    """Check sync completion status for a given job ID."""
     if worker is None:  
         return jsonify({"error": "Worker not initialized"}), 503
     
     data = request.get_json()
-    job_ids = data.get("job_ids", [])
+    job_id = data.get("job_id", "").strip()
     
-    if not job_ids:
-        return jsonify({"error": "No job IDs provided"}), 400
+    if not job_id:
+        return jsonify({"error": "No job ID provided"}), 400
     
-    results = {}
-    for job_id in job_ids:
-        try:
-            status = worker.check_sync_completion(job_id)
-            results[job_id] = (status == "COMPLETE")
-        except Exception as e:
-            print(f"Error checking status for {job_id}: {e}")
-            results[job_id] = False
+    try:
+        status = worker.check_sync_completion(job_id)
+        return jsonify({
+            "job_id": job_id,
+            "status": status,
+            "is_ready": status == "COMPLETED",
+            "is_failed": status in ["FAILED", "STOPPED"]
+        }), 200
+    except Exception as e:
+        print(f"Error checking status for {job_id}: {e}")
+        return jsonify({
+            "job_id": job_id,
+            "error": str(e),
+        }), 500
     
-    all_ready = all(results.values())
     
-    return jsonify({
-        "all_ready": all_ready,
-        "job_statuses": results
-    }), 200
 
 #application entry point - initialize worker and start Flask app 
 init_worker()
