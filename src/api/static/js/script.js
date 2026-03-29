@@ -86,24 +86,21 @@ async function uploadFiles() {
         if (!response.ok) {
             const msg = data.error || 'Upload failed. Please try again.';
             setStatus(statusEl, msg, 'error');
-            uploadBtn.disabled = false;
-        } else {
-            fileInput.value = ''; // Clear the file input after success            
-            // Start polling for file readiness
-            if (data.job_id) {
+        } else if (data.job_id) {
                 setStatus(statusEl, 'Files uploaded. Syncing Knowledge Base...', '');
-                res = await pollSyncStatus(data.job_id, statusEl);
-                if (res)
+                const isSuccess = await pollSyncStatus(data.job_id, statusEl);
+                if (isSuccess) {
                     loadFiles();
-                    uploadBtn.disabled = false;    
+                    fileInput.value = '';
+                }    
             } else {
                 setStatus(statusEl, 'Failed to start sync.', 'error');
-                uploadBtn.disabled = false;
-                // loadFiles();
             }
-        }
+        
     } catch (err) {
         setStatus(statusEl, 'Network error during upload.', 'error');
+    }
+    finally {
         uploadBtn.disabled = false;
     }
 }
@@ -113,48 +110,42 @@ async function uploadFiles() {
  * @param {HTMLElement} statusEl - Status element to update
  */
 async function pollSyncStatus(jobId, statusEl) {
-    const maxAttempts = 60; // 60 attempts * 2 seconds = 2 minutes max
+    const maxAttempts = 60;
     let attempts = 0;
-        
-    const checkStatus = async () => {
+
+    while (attempts < maxAttempts) {
         attempts++;
-        
         try {
             const response = await fetch('/check_sync_completion', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ job_id: jobId })
             });
-            
+
             const data = await response.json();
-            
+
             if (data.is_failed) {
                 setStatus(statusEl, `Sync failed (Status: ${data.status}).`, 'error');
                 return false;
             }
-            
+
             if (data.is_ready) {
                 setStatus(statusEl, `Sync complete!`, 'success');
-                loadFiles();
                 return true;
             }
+            
+            // Wait 2 seconds before next iteration
+            await new Promise(resolve => setTimeout(resolve, 2000));
 
-            if (attempts >= maxAttempts) {
-                setStatus(statusEl, 'Sync is taking a long time. Check back later.', 'error');
-                return false;
-            }
-            
-            // Poll again after delay
-            setTimeout(checkStatus, 2000); // Check every 2 seconds
-            
         } catch (error) {
             console.error('Error checking sync:', error);
-            setStatus(statusEl, 'Network error while checking sync status.', 'error');}
+            setStatus(statusEl, 'Network error checking status.', 'error');
             return false;
-    };
-    
-    // Start polling immediately
-    checkStatus();
+        }
+    }
+
+    setStatus(statusEl, 'Sync timed out. Check back later.', 'error');
+    return false;
 }
 
 /* =============================================
@@ -294,6 +285,8 @@ function displayFileTabs(files) {
         const tab = document.createElement('div');
         tab.classList.add('file-tab');
 
+        filename = filename.split('/').pop(); // Take only the file name
+
         // File name
         const nameSpan = document.createElement('span');
         nameSpan.classList.add('file-name');
@@ -352,12 +345,18 @@ async function deleteFileHandler(filename) {
         setStatus(statusEl, `Network error while deleting file: ${error.message}`, 'error');
     }
 
-    // Refresh the file list after a short delay
-    setTimeout(() => {
-        loadFiles();
-        // Clear success/error message after displaying files
-        setTimeout(() => setStatus(statusEl, '', ''), 3000);
-    }, 500);
+    loadFiles();
+    setTimeout(() => setStatus(statusEl, '', ''), 3000);
+
+}
+
+/* Added a check to prevent double-firing while "Thinking..." */
+function handleKeyDown(event) {
+    const sendBtn = document.getElementById('sendBtn');
+    if (event.key === 'Enter' && !event.shiftKey && !sendBtn.disabled) {
+        event.preventDefault();
+        sendQuestion();
+    }
 }
 
 /* =============================================
@@ -367,4 +366,8 @@ async function deleteFileHandler(filename) {
 // Load the file list when the page loads
 window.addEventListener('DOMContentLoaded', () => {
     loadFiles();
+
+
+    const questionInput = document.getElementById('questionInput');
+    questionInput.addEventListener('keydown', handleKeyDown);
 });
