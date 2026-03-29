@@ -43,16 +43,24 @@ class BedrockClient:
                     }
                 }
             )
-
-            # Extract and print the generated output
-            output_text = response.get("output", {}).get("text", "")
-            # print("Generated Answer:\n", output_text)
-            return output_text
+            # if citations are empty or refusal detected -> fallback to direct generation without context
+            citations = response.get("citations", [])
+            output_text = response.get("output", {}).get("text", "").lower()
+            refusal_phrases = ["sorry, i am unable to assist you with this request.", "i don't know", "cannot answer", "unable to answer", "no information"]
+            is_refusal = any(phrase in output_text for phrase in refusal_phrases)
+            if not citations or is_refusal:
+                print(f"Fallback to direct generation without context: {output_text}")
+                output_text = self.claude_complete(query_text)
+                return output_text
+            else:
+                output_text = response.get("output", {}).get("text", "")
+                print(f"Retrieved {len(citations)} citations, generated answer: {output_text}")
+                return output_text
         except (BotoCoreError, ClientError) as e:
             print(f"Error calling retrieve_and_generate: {e}")
             return None
         
-    def sync_data(self):
+    def sync_data(self, prefix: str = "data/") -> str:
         """Synchronize data from an S3 bucket to a Bedrock knowledge base."""
         print(f"Starting data sync for KB: {self.kb_id} with S3 bucket: {self.s3_bucket_arn}")
         self.client_agent.update_data_source(
@@ -63,7 +71,7 @@ class BedrockClient:
             'type': 'S3',
             's3Configuration': {
                 'bucketArn': self.s3_bucket_arn, 
-                'inclusionPrefixes': ['data/'] # additional layer of filtering
+                'inclusionPrefixes': [prefix] # additional layer of filtering
             }
         }
     )
