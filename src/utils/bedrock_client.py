@@ -5,7 +5,7 @@ import json
 
 class BedrockClient:
     def __init__(self):
-        self.region = os.getenv("REGION", "us-east-1")
+        self.region = os.getenv("AWS_REGION", "us-east-1")
         self.kb_id = os.getenv("KNOWLEDGE_BASE_ID", "")
         self.data_source_id = os.getenv("DATA_SOURCE_ID", "")
         self.s3_bucket_arn = os.getenv("S3_BUCKET_ARN", "")

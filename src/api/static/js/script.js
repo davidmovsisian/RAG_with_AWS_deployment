@@ -1,27 +1,3 @@
-/**
- * script.js
- * Frontend logic for the RAG Chat Assistant.
- * Uses vanilla JavaScript (no frameworks) to call the Flask API.
- *
- * API endpoints used:
- *   POST   /ask                - send a question, get an AI answer + context chunks
- *   POST   /upload             - upload one or more .txt or .pdf files
- *   GET    /list-files         - retrieve list of uploaded files
- *   POST   /check-files-ready  - check if files are indexed in OpenSearch
- *   DELETE /delete-file        - delete an uploaded file by name
- */
-
-/* =============================================
-   Send Question  (/ask)
-   ============================================= */
-
-/**
- * Reads the question input and top_k selector, then:
- *  1. Displays the user message immediately.
- *  2. Shows a loading indicator.
- *  3. POSTs to /ask.
- *  4. Replaces the loading indicator with the AI answer (+ sources).
- */
 async function sendQuestion() {
     const input   = document.getElementById('questionInput');
     const topK    = parseInt(document.getElementById('topKSelect').value, 10);
@@ -78,14 +54,6 @@ function handleKeyDown(event) {
     }
 }
 
-/* =============================================
-   Upload Files  (/upload)
-   ============================================= */
-
-/**
- * Reads the file input and POSTs all selected .txt or .pdf files to /upload.
- * Displays a status message with the result and polls until files are ready.
- */
 async function uploadFiles() {
     const fileInput   = document.getElementById('fileInput');
     const uploadBtn   = document.getElementById('uploadBtn');
@@ -108,7 +76,7 @@ async function uploadFiles() {
     setStatus(statusEl, 'Uploading…', '');
 
     try {
-        const response = await fetch('/upload', {
+        const response = await fetch('/upload-files', {
             method: 'POST',
             body: formData
         });
@@ -120,15 +88,18 @@ async function uploadFiles() {
             setStatus(statusEl, msg, 'error');
             uploadBtn.disabled = false;
         } else {
-            fileInput.value = ''; // Clear the file input after success
-            
+            fileInput.value = ''; // Clear the file input after success            
             // Start polling for file readiness
-            if (data.files && data.files.length > 0) {
-                await pollFilesReady(data.files, statusEl, uploadBtn);
+            if (data.job_id) {
+                setStatus(statusEl, 'Files uploaded. Syncing Knowledge Base...', '');
+                res = await pollSyncStatus(data.job_id, statusEl);
+                if (res)
+                    loadFiles();
+                    uploadBtn.disabled = false;    
             } else {
-                setStatus(statusEl, 'Files uploaded successfully.', 'success');
+                setStatus(statusEl, 'Failed to start sync.', 'error');
                 uploadBtn.disabled = false;
-                loadFiles();
+                // loadFiles();
             }
         }
     } catch (err) {
@@ -138,62 +109,52 @@ async function uploadFiles() {
 }
 
 /**
- * Poll until all uploaded files are indexed in OpenSearch
- * @param {Array<string>} filenames - List of uploaded filenames
+ * @param {string} jobId - Job ID for the sync operation
  * @param {HTMLElement} statusEl - Status element to update
- * @param {HTMLElement} uploadBtn - Upload button to re-enable
  */
-async function pollFilesReady(filenames, statusEl, uploadBtn) {
-    const maxAttempts = 60; // 60 attempts * 5 seconds = 5 minutes max
+async function pollSyncStatus(jobId, statusEl) {
+    const maxAttempts = 60; // 60 attempts * 2 seconds = 2 minutes max
     let attempts = 0;
-    
-    setStatus(statusEl, `Processing ${filenames.length} file(s)...`, '');
-    
+        
     const checkStatus = async () => {
         attempts++;
         
         try {
-            const response = await fetch('/check-files-ready', {
+            const response = await fetch('/check_sync_completion', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ files: filenames })
+                body: JSON.stringify({ job_id: jobId })
             });
             
             const data = await response.json();
             
-            if (data.all_ready) {
-                // All files are indexed
-                setStatus(statusEl, `All ${filenames.length} file(s) are ready!`, 'success');
-                uploadBtn.disabled = false;
-                loadFiles();
-                return;
+            if (data.is_failed) {
+                setStatus(statusEl, `Sync failed (Status: ${data.status}).`, 'error');
+                return false;
             }
             
-            // Count how many are ready
-            const readyCount = Object.values(data.files).filter(Boolean).length;
-            setStatus(statusEl, `Processing... (${readyCount}/${filenames.length} files ready)`, '');
-            
-            // Check if we've exceeded max attempts
-            if (attempts >= maxAttempts) {
-                setStatus(statusEl, 'Processing is taking longer than expected. Files may still be indexing.', 'error');
-                uploadBtn.disabled = false;
+            if (data.is_ready) {
+                setStatus(statusEl, `Sync complete!`, 'success');
                 loadFiles();
-                return;
+                return true;
+            }
+
+            if (attempts >= maxAttempts) {
+                setStatus(statusEl, 'Sync is taking a long time. Check back later.', 'error');
+                return false;
             }
             
             // Poll again after delay
-            setTimeout(checkStatus, 5000); // Check every 5 seconds
+            setTimeout(checkStatus, 2000); // Check every 2 seconds
             
         } catch (error) {
-            console.error('Error checking file status:', error);
-            setStatus(statusEl, 'Error checking file status. Files may still be processing.', 'error');
-            uploadBtn.disabled = false;
-            loadFiles();
-        }
+            console.error('Error checking sync:', error);
+            setStatus(statusEl, 'Network error while checking sync status.', 'error');}
+            return false;
     };
     
-    // Start polling after initial delay
-    setTimeout(checkStatus, 3000); // Initial delay of 3 seconds
+    // Start polling immediately
+    checkStatus();
 }
 
 /* =============================================
@@ -360,10 +321,6 @@ function displayFileTabs(files) {
  * @param {string} filename
  */
 async function deleteFileHandler(filename) {
-    // if (!confirm(`Are you sure you want to delete "${filename}"?`)) {
-    //     return;
-    // }
-
     const statusEl = document.getElementById('uploadStatus');
     // Visually mark the tab as being deleted
     const tabs = document.querySelectorAll('.file-tab');
@@ -372,6 +329,7 @@ async function deleteFileHandler(filename) {
             tab.classList.add('deleting');
         }
     });
+
 
     try {
         const response = await fetch('/delete-file', {
@@ -383,8 +341,10 @@ async function deleteFileHandler(filename) {
         const data = await response.json();
 
         if (response.ok) {
-            console.log(`Deleted: ${filename}`);
-            setStatus(statusEl, `File deleted successfully: ${filename}`, 'success');
+            if (data.job_id) {
+                setStatus(statusEl, `Deleting ${filename} and syncing...`, '');
+                await pollSyncStatus(data.job_id, statusEl);
+            }
         } else {
             setStatus(statusEl, `Error deleting file: ${data.error || 'An unexpected error occurred.'}`, 'error');
         }
