@@ -1,46 +1,56 @@
 import os
 from typing import Any, Dict, List
 import boto3
-from opensearchpy import OpenSearch, RequestsHttpConnection
-from requests_aws4auth import AWS4Auth
-
+from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth
 
 class OpenSearchClient:
     def __init__(self):
         endpoint = os.getenv("OPENSEARCH_ENDPOINT", "")
         self.index_name = os.getenv("OPENSEARCH_INDEX_NAME", "rag-documents")
         # Parse host and port from endpoint
-        host = endpoint.replace("https://", "").replace("http://", "")
+        host = endpoint.replace("https://", "").replace("http://", "").split(':')[0]
 
         region = os.getenv("AWS_REGION", "us-east-1")
+        service = "aoss"  # "aoss" for OpenSearch Serverless, "es" for managed domains
         credentials = boto3.Session().get_credentials()
-        aws_auth = AWS4Auth(
-            credentials.access_key,
-            credentials.secret_key,
-            region,
-            "aoss", # Use "aoss" for OpenSearch Serverless, "es" for managed domains
-            session_token=credentials.token,
-        )
+        aws_auth = AWSV4SignerAuth(credentials, region, service)
         self.client = OpenSearch(
             hosts=[{"host": host, "port": 443}],
             http_auth=aws_auth,
             use_ssl=True,
             verify_certs=True,
             connection_class=RequestsHttpConnection,
+            timeout=60,
+            max_retries=3,
+            retry_on_timeout=True,
         )
         print("OpenSearchClient initialized with AWS IAM auth")
 
+    def _knn_mapping_exists(self) -> bool:
+        """Check if the index has a proper knn_vector mapping for 'embedding'."""
+        try:
+            mapping = self.client.indices.get_mapping(index=self.index_name)
+            props = mapping[self.index_name]["mappings"].get("properties", {})
+            return props.get("embedding", {}).get("type") == "knn_vector"
+        except Exception:
+            return False
+
     def create_index(self) -> bool:
         """Create a KNN-enabled index with HNSW algorithm."""
-        
         dimension = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
         try:
             if self.client.indices.exists(index=self.index_name):
-                print(f"Index '{self.index_name}' already exists")
-                return True
+                if self._knn_mapping_exists():
+                    print(f"Index '{self.index_name}' already exists with correct mapping")
+                    return True
+                print(f"Index '{self.index_name}' exists but has wrong mapping — recreating")
+                self.client.indices.delete(index=self.index_name)
+                print(f"Deleted index '{self.index_name}'")
 
             index_body = {
-                "settings": {"index": {"knn": True, "knn.algo_param.ef_search": 512}},
+                "settings": {
+                    "index": {"knn": True}
+                },
                 "mappings": {
                     "properties": {
                         "content": {"type": "text"},
@@ -50,7 +60,7 @@ class OpenSearchClient:
                             "method": {
                                 "name": "hnsw",
                                 "space_type": "l2",
-                                "engine": "nmslib",
+                                "engine": "faiss",
                                 "parameters": {"ef_construction": 512, "m": 16},
                             },
                         },
@@ -58,7 +68,7 @@ class OpenSearchClient:
                             "properties": {
                                 "filename": {"type": "keyword"},
                                 "chunk_id": {"type": "integer"},
-                                "total_chunks": {"type": "integer"},
+                                "total_chunks": {"type": "integer"}
                             }
                         },
                     }

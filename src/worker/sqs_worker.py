@@ -79,10 +79,8 @@ class SQSWorker:
             print(f"error processing message (receipt_handle={receipt_handle}): {e}")
 
     def proccees_document(self, receipt_handle, s3_key: str):
-        # Determine file, txt or pdf
+        print(f"Processing document {s3_key})")
         extension = self.s3_client.get_file_type(s3_key)
-        
-        print(f"Processing document {s3_key} of type {extension})")
         content = None
 
         if extension == ".txt":
