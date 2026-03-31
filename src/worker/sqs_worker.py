@@ -5,7 +5,7 @@ from typing import Optional
 import boto3
 import threading
 from utils.s3_client import S3Client
-from worker.document_processor import DocumentProcessor
+from utils.document_processor import DocumentProcessor
 from utils.textract_client import TextractClient
 
 """

@@ -6,7 +6,7 @@ from utils.bedrock_client import BedrockClient
 from utils.opensearch_client import OpenSearchClient
 from utils.s3_client import S3Client
 from utils.chunking import TextChunker
-from worker.document_processor import DocumentProcessor
+from utils.document_processor import DocumentProcessor
 from worker.sqs_worker import SQSWorker
 
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
