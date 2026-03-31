@@ -1,74 +1,64 @@
 import os
 from typing import List
-from google import genai
-from google.genai import types
-from queue import Queue, Empty
+import json
+import boto3
+from botocore.exceptions import ClientError
 
 class BedrockClient:
-    def __init__(self, pool_size=5):
-        self.embedding_model = os.getenv("EMBEDDING_MODEL", "gemini-embedding-001")
-        self.llm_model = os.getenv("LLM_MODEL", "gemini-2.5-flash")
-        self.max_tokens = int(os.getenv("GEMINI_MAX_TOKENS", "4096"))
-        self.temperature = float(os.getenv("GEMINI_TEMPERATURE", "0.7"))
-        self.embedding_dimension = int(os.getenv("EMBEDDING_DIMENSION", "768"))
+    def __init__(self):
+        self.embedding_model = os.getenv("EMBEDDING_MODEL", "amazon.titan-embed-text-v1")
+        self.llm_model = os.getenv("LLM_MODEL", "anthropic.claude-3-sonnet-20240229-v1:0")
+        self.max_tokens = int(os.getenv("MAX_TOKENS", "4096"))
+        self.temperature = float(os.getenv("TEMPERATURE", "0.7"))
+        # self.embedding_dimension = int(os.getenv("EMBEDDING_DIMENSION", "768"))
+        self.region = os.getenv("AWS_REGION", "us-east-1")
+        self.client = boto3.client("bedrock-runtime", region_name=self.region)
 
-        self.client_pool = Queue(maxsize=pool_size)
-        # Initialize pool with client instances
-        for i in range(pool_size):
-            client = genai.Client(api_key=self.api_key)
-            self.client_pool.put(client)
+        print("BedrockClient initialized")
 
-        print(
-            f"GeminiClient initialized (embedding={self.embedding_model}, "
-            f"llm={self.llm_model})"
-        )
+    def get_embedding(self, text: str) -> List[float]:
+        body = json.dumps({
+            "inputText": text,
+        })
 
-    def _get_client(self) -> genai.Client:
         try:
-            return self.client_pool.get(timeout=10)  # wait for a client to be available
-        except Empty:
-            raise Exception("No Gemini client available in pool")
-    
-    def _release_client(self, client):
-        self.client_pool.put(client)
-
-    def get_embedding(self, text: str, is_query: bool = False) -> List[float]:
-        client = self._get_client()
-        try:
-            result = client.models.embed_content(
-                model=self.embedding_model,
-                contents=text,
-                config=types.EmbedContentConfig(
-                    task_type="RETRIEVAL_DOCUMENT" if not is_query else "RETRIEVAL_QUERY",
-                    output_dimensionality=self.embedding_dimension)
+            response = self.client.invoke_model(
+                body=body, 
+                modelId=self.embedding_model, 
+                accept="application/json", 
+                contentType="application/json"
             )
-            if not result.embeddings:
-                return []
-            return list(result.embeddings[0].values)
+
+            # Parse the response body
+            response_body = json.loads(response.get("body").read())
+            
+            # Titan returns the vector in the 'embedding' field
+            embedding = response_body.get("embedding")
+            
+            return embedding
+
         except Exception as e:
             print(f"Error generating embedding: {e}")
-            return []
-        finally:
-            self._release_client(client)
-    
-    def generate_answer(self, context, question):
-        client = self._get_client()
-        try:
-            prompt = f"""Use the following context to answer the question clearly.
+            raise
 
-        Context:
-        {context}
-        Question: {question}"""
-            resp = client.models.generate_content(
-                model=self.llm_model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    thinking_config=types.ThinkingConfig(thinking_budget=1)  # keep it fast/light
-                )
-            )
-            return (resp.text or "").strip()
-        except Exception as e:
-            print(f"Error generating answer: {e}")
-        finally:
-            self._release_client(client)
-    
+    def generate_answer(self, context, question):
+        body = {
+            "anthropic_version": "bedrock-2023-05-31",
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature,
+            "system": f"Answer the question based ONLY on the following context:\n{context}",
+            "messages": [
+                {"role": "user", "content": [{"type": "text", "text": question}]}
+            ]
+        }
+
+        try:
+            resp = self.client.invoke_model(modelId=self.llm_model, body=json.dumps(body))
+            payload = resp["body"].read() if hasattr(resp.get("body"), "read") else resp["body"]
+            data = json.loads(payload)
+
+            parts = data.get("content", [])
+            text = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
+            return text.strip()
+        except ClientError as e:
+            raise RuntimeError(f"Bedrock InvokeModel failed: {e.response.get('Error', {}).get('Message')}") from e    

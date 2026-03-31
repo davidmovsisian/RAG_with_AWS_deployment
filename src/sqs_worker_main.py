@@ -2,7 +2,7 @@ import os
 import signal
 import boto3
 from dotenv import load_dotenv
-from utils.gemini_client import GeminiClient
+from utils.bedrock_client import BedrockClient
 from utils.opensearch_client import OpenSearchClient
 from utils.s3_client import S3Client
 from utils.chunking import TextChunker
@@ -19,14 +19,14 @@ def main():
     sqs_client = boto3.client("sqs", region_name=region)
 
     s3_client = S3Client()
-    gemini_client = GeminiClient(pool_size=int(os.getenv("GEMINI_POOL_SIZE", "5")))
+    bedrock_client = BedrockClient()
     opensearch_client = OpenSearchClient()
     text_chunker = TextChunker()
 
     opensearch_client.create_index()
 
     document_processor = DocumentProcessor(
-        gemini_client,
+        bedrock_client,
         opensearch_client,
         text_chunker
     )

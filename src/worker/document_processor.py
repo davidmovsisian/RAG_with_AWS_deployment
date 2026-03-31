@@ -1,15 +1,15 @@
-from utils.gemini_client import GeminiClient
 from utils.chunking import TextChunker
 from utils.opensearch_client import OpenSearchClient
+from utils.bedrock_client import BedrockClient
 
 class DocumentProcessor:
     def __init__(
         self,
-        gemini_client: "GeminiClient",
+        bedrock_client: "BedrockClient",
         opensearch_client: "OpenSearchClient",
         text_chunker: "TextChunker",
     ):
-        self.gemini_client = gemini_client
+        self.bedrock_client = bedrock_client
         self.opensearch_client = opensearch_client
         self.text_chunker = text_chunker
         print("DocumentProcessor initialized")
@@ -25,7 +25,7 @@ class DocumentProcessor:
         print(f"Indexing {total_chunks} chunks for {filename}")
 
         for chunk_id, chunk in enumerate(chunks):
-            embedding = self.gemini_client.get_embedding(chunk)
+            embedding = self.bedrock_client.get_embedding(chunk)
             metadata = {
                 "filename": filename,
                 "chunk_id": chunk_id,
