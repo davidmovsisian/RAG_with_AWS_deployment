@@ -7,7 +7,7 @@ from io import BytesIO
 from pypdf import PdfReader
 
 #use AWS Textractor to extract text from PDF files. 
-class PDFExtractor:
+class TextractClient:
     # Max file size limits
     MAX_SYNC_PAGES = 1  # Synchronous API supports only single-page documents
     MAX_ASYNC_PAGES = 3000  # Asynchronous API supports up to 3,000 pages
@@ -18,7 +18,7 @@ class PDFExtractor:
         self.textract_client = boto3.client("textract", region_name=region)
         self.s3_client = boto3.client("s3", region_name=region)
         self.bucket_name = os.getenv("S3_BUCKET_NAME", "")
-        print(f"PDFExtractor initialized with AWS Textract (region={region})")
+        print(f"TextractClient initialized with AWS Textract (region={region})")
     
     def extract_text_from_pdf(self, pdf_bytes: bytes, s3_key: str = None) -> Optional[str]:
         file_size = len(pdf_bytes)

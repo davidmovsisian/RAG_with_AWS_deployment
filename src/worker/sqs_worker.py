@@ -6,7 +6,7 @@ import boto3
 import threading
 from utils.s3_client import S3Client
 from worker.document_processor import DocumentProcessor
-from utils.pdf_extractor import PDFExtractor
+from utils.textract_client import TextractClient
 
 """
 # read message from SQS, retrieve the S3 key from the message, 
@@ -97,8 +97,8 @@ class SQSWorker:
                 print(f"Failed to read content for {s3_key}")
                 self._delete_message(receipt_handle)
                 return
-            pdf_extractor = PDFExtractor()
-            content = pdf_extractor.extract_text_from_pdf(pdf_bytes, s3_key=s3_key)
+            textract_client = TextractClient()
+            content = textract_client.extract_text_from_pdf(pdf_bytes, s3_key=s3_key)
             if content is None:
                 print(f"Failed to extract text from PDF: {s3_key}")
                 self._delete_message(receipt_handle)
