@@ -1,0 +1,27 @@
+# AWS Configuration
+AWS_REGION=us-east-1
+TEAM_NAME=davidm
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+
+# S3 Configuration
+S3_BUCKET_NAME=davidm-ai-backet
+S3_BUCKET_ARN= arn:aws:s3:::${S3_BUCKET_NAME}
+
+# API Configuration
+FLASK_ENV=development
+FLASK_DEBUG=True
+FLASK_PORT=5000
+FLASK_HOST=0.0.0.0
+
+# Bedrock Configuration
+KNOWLEDGE_BASE_ID=HHEXVOY8KR
+DATA_SOURCE_ID=AXHGCEPVUD
+MODEL_ID=anthropic.claude-3-haiku-20240307-v1:0
+
+ # Gunicorn configuration
+GUNICORN_WORKERS=1 # 1 worker with 1 threads to handle API requests
+GUNICORN_THREADS=1
+GUNICORN_WORKER_CLASS=gthread
+GUNICORN_TIMEOUT=120
+GUNICORN_LOG_LEVEL=info
