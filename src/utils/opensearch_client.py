@@ -11,7 +11,6 @@ class OpenSearchClient:
         self.index_name = os.getenv("OPENSEARCH_INDEX_NAME", "rag-documents")
         # Parse host and port from endpoint
         host = endpoint.replace("https://", "").replace("http://", "")
-        # use_ssl = endpoint.startswith("https://")
 
         region = os.getenv("AWS_REGION", "us-east-1")
         credentials = boto3.Session().get_credentials()
@@ -31,10 +30,10 @@ class OpenSearchClient:
         )
         print("OpenSearchClient initialized with AWS IAM auth")
 
-    def create_index(self, dimension: int = None) -> bool:
+    def create_index(self) -> bool:
         """Create a KNN-enabled index with HNSW algorithm."""
-        if dimension is None:
-            dimension = int(os.getenv("EMBEDDING_DIMENSION", "768"))
+        
+        dimension = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
         try:
             if self.client.indices.exists(index=self.index_name):
                 print(f"Index '{self.index_name}' already exists")

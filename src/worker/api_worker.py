@@ -1,4 +1,3 @@
-import os
 from utils.opensearch_client import OpenSearchClient
 from utils.s3_client import S3Client
 from utils.bedrock_client import BedrockClient
@@ -24,32 +23,15 @@ class ApiWorker:
         answer = self.bedrock_client.generate_answer(context, question)
         return {"question": question, "top_k": top_k, "context": chunks, "answer": answer}
         
-    def health_check(self) -> dict:
-        status = {
-            "status": "healthy",
-            "services": {
-                "s3": "unknown",
-                "opensearch": "unknown",
-                "gemini": "unknown",
-            }
-        }
-        try:
-            self.s3_client.client.list_buckets()
-            status["services"]["s3"] = "healthy"
-        except Exception as e:
-            status["services"]["s3"] = "unhealthy"
-            status["status"] = "degraded"
-        try:
-            self.opensearch_client.client.ping()
-            status["services"]["opensearch"] = "healthy"
-        except Exception as e:
-            status["services"]["opensearch"] = "unhealthy"
-            status["status"] = "degraded"
-        try:
-            self.gemini_client.get_embedding("health check")
-            status["services"]["gemini"] = "healthy"
-        except Exception as e:
-            status["services"]["gemini"] = "unhealthy"
-            status["status"] = "degraded"
-        
-        return status
+    def upload_files(self, files):
+        for file in files:
+            self.s3_client.upload_file(file)
+    
+    def list_files(self):
+        return self.s3_client.list_files()
+    
+    def delete_file(self, filename: str):
+        self.s3_client.delete_file(filename)
+
+    def check_document_indexed(self, filename: str) -> bool:
+        return self.opensearch_client.check_document_indexed(filename)

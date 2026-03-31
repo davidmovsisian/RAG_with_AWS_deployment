@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Tuple
+from typing import Optional
 import boto3
 
 class S3Client:
@@ -7,19 +7,22 @@ class S3Client:
         region = os.getenv("AWS_REGION", "us-east-1")
         self.client = boto3.client("s3", region_name=region)
         self.bucket_name = os.getenv("S3_BUCKET_NAME", "")
+        self.bucket_prefix  = os.getenv("S3_BUCKET_PREFIX", "")
         print(f"S3Client initialized (bucket={self.bucket_name})")
 
     def upload_file(self, file: str):
-        content = file.read()
-        key = file.filename
-        self.client.put_object(Bucket=self.bucket_name, Key=key, Body=content)
+        file.seek(0)
+        key = f"{self.bucket_prefix}/{file.filename}"
+        self.client.upload_fileobj(file, self.bucket_name, key)
         print(f"Uploaded content -> s3://{self.bucket_name}/{key}")
     
-    def delete_file(self, key: str):
+    def delete_file(self, filename: str):
+        key = f"{self.bucket_prefix}/{filename}"
         self.client.delete_object(Bucket=self.bucket_name, Key=key)
         print(f"Deleted s3://{self.bucket_name}/{key}")
 
     def read_file_content(self, key: str) -> Optional[str]:
+        key = f"{self.bucket_prefix}/{key}"
         print(f"Reading S3 object: {key} from bucket: {self.bucket_name}")
         response = self.client.get_object(Bucket=self.bucket_name, Key=key)
         file_bytes = response["Body"].read()
@@ -28,6 +31,7 @@ class S3Client:
         return content
 
     def read_file_bytes(self, key: str) -> Optional[bytes]:
+        key = f"{self.bucket_prefix}/{key}"
         print(f"Reading S3 object as bytes: {key}")
         try:
             response = self.client.get_object(Bucket=self.bucket_name, Key=key)
@@ -45,13 +49,13 @@ class S3Client:
         else:
             return extension
             
-    def list_files(self, prefix: str = "") -> list:
+    def list_files(self) -> list:
         paginator = self.client.get_paginator('list_objects_v2')
-        page_iterator = paginator.paginate(Bucket=self.bucket_name, Prefix=prefix)
+        page_iterator = paginator.paginate(Bucket=self.bucket_name, Prefix=self.bucket_prefix)
         files = []
         for page in page_iterator:
             contents = page.get('Contents', [])
             for obj in contents:
                 files.append(obj['Key'])
-        print(f"Listed {len(files)} files with prefix '{prefix}'")
+        print(f"Listed {len(files)} files with prefix '{self.bucket_prefix}'")
         return files
