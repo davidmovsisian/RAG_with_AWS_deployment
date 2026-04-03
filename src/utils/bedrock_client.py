@@ -7,10 +7,9 @@ from botocore.exceptions import ClientError
 class BedrockClient:
     def __init__(self):
         self.embedding_model = os.getenv("EMBEDDING_MODEL", "amazon.titan-embed-text-v1")
-        self.llm_model = os.getenv("LLM_MODEL", "anthropic.claude-3-sonnet-20240229-v1:0")
+        self.llm_model = os.getenv("LLM_MODEL", "us.anthropic.claude-3-5-haiku-20241022-v1:0")
         self.max_tokens = int(os.getenv("MAX_TOKENS", "4096"))
         self.temperature = float(os.getenv("TEMPERATURE", "0.7"))
-        # self.embedding_dimension = int(os.getenv("EMBEDDING_DIMENSION", "768"))
         self.region = os.getenv("AWS_REGION", "us-east-1")
         self.client = boto3.client("bedrock-runtime", region_name=self.region)
 

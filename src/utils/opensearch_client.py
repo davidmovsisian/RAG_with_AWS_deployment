@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Any, Dict, List
 import boto3
 from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth
@@ -148,21 +149,34 @@ class OpenSearchClient:
             print(f"Error searching by metadata: {e}")
             return []
     
-    def check_document_indexed(self, filename: str) -> bool:
-        """Check if a document is fully indexed in OpenSearch by checking if any chunks exist."""
-        try:
-            results = self.search_by_metadata(field="filename", value=filename, size=1)
-            return len(results) > 0
-        except Exception as e:
-            print(f"Error checking document status: {e}")
-            return False
+    def check_document_indexed(self, filename: str, retries: int = 10, delay: float = 3.0) -> bool:
+        """Check if a document is indexed, retrying to account for OpenSearch propagation delay."""
+        for attempt in range(1, retries + 1):
+            try:
+                results = self.search_by_metadata(field="filename", value=filename, size=1)
+                if results:
+                    return True
+            except Exception as e:
+                print(f"Error checking document status: {e}")
+            print(f"Document '{filename}' not yet visible, retrying ({attempt}/{retries})...")
+            time.sleep(delay)
+        return False
         
     def delete_document(self, doc_id: str) -> bool:
         """Delete a document by ID from the index."""
         try:
             self.client.delete(index=self.index_name, id=doc_id)
-            print(f"Deleted document with id={doc_id}")
-            return True
+            for attempt in range(1, 6):
+                try:
+                    self.client.get(index=self.index_name, id=doc_id)
+                    print(f"Document {doc_id} still exists after deletion attempt {attempt}")
+                    time.sleep(5)
+                except Exception:
+                    print(f"Confirmed deletion of document with id={doc_id}")
+                    return True
+                time.sleep(5)
+            print(f"Failed to delete document with id={doc_id}")
+            return False
         except Exception as e:
             print(f"Error deleting document {doc_id}: {e}")
             return False

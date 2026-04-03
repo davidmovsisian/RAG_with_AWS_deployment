@@ -144,14 +144,11 @@ async function uploadFiles() {
  * @param {HTMLElement} uploadBtn - Upload button to re-enable
  */
 async function pollFilesReady(filenames, statusEl, uploadBtn) {
-    const maxAttempts = 60; // 60 attempts * 5 seconds = 5 minutes max
+    const maxAttempts = 60;
     let attempts = 0;
     
-    setStatus(statusEl, `Processing ${filenames.length} file(s)...`, '');
-    
-    const checkStatus = async () => {
+    while (attempts < maxAttempts) {
         attempts++;
-        
         try {
             const response = await fetch('/check-files-ready', {
                 method: 'POST',
@@ -181,8 +178,8 @@ async function pollFilesReady(filenames, statusEl, uploadBtn) {
                 return;
             }
             
-            // Poll again after delay
-            setTimeout(checkStatus, 5000); // Check every 5 seconds
+            // Wait 2 seconds before next iteration
+            // await new Promise(resolve => setTimeout(resolve, 2000));
             
         } catch (error) {
             console.error('Error checking file status:', error);
@@ -190,10 +187,10 @@ async function pollFilesReady(filenames, statusEl, uploadBtn) {
             uploadBtn.disabled = false;
             loadFiles();
         }
-    };
-    
-    // Start polling after initial delay
-    setTimeout(checkStatus, 3000); // Initial delay of 3 seconds
+
+    }
+
+    setStatus(statusEl, 'Sync timed out. Check back later.', 'error');
 }
 
 /* =============================================

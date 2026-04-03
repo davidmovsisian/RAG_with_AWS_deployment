@@ -45,5 +45,4 @@ class DocumentProcessor:
         for result in results:
             doc_id = result["_id"]
             self.opensearch_client.delete_document(doc_id)
-            print(f"Deleted {doc_id} for {filename}")
         return True
