@@ -2,9 +2,10 @@ import os
 from flask import Flask, request, jsonify, send_from_directory
 from dotenv import load_dotenv
 from worker.api_worker import ApiWorker
+import logging
 
+logger = logging.getLogger(__name__)
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
-
 app = Flask(__name__, static_folder='static', static_url_path='')
 
 # Global worker
@@ -24,7 +25,6 @@ def index():
 def health_check():
     return jsonify({"status": "healthy"}), 200
 
-# return list of indexed documents
 @app.route("/list-files", methods=["GET"])
 def list_docs():
     if worker is None:  
@@ -33,7 +33,7 @@ def list_docs():
         files = worker.list_files()
         return jsonify({"files": files}), 200
     except Exception as e:
-        print(f"Error listing documents: {e}")
+        logger.error(f"Error listing documents: {e}")
         return jsonify({
             "error": "Error listing documents",
             "details": str(e)
@@ -51,7 +51,7 @@ def ask_question():
     try:
         answer = worker.ask_question(question, top_k)
     except Exception as e:
-        print(f"Error processing question: {e}")
+        logger.error(f"Error processing question: {e}")
         return jsonify({
             "error": "Error processing question",
             "details": str(e)
@@ -74,16 +74,17 @@ def upload_file():
 
     bad_files = [f for f in files if not f.filename.lower().endswith(SUPPORTED_EXTENSIONS)]
     if bad_files:        
-        print(f"Unsupported file type for files: {[f.filename for f in bad_files]}")
+        logger.error(f"Unsupported file type for files: {[f.filename for f in bad_files]}")
         return jsonify({
             "error": f"Unsupported file type for files: {[f.filename for f in bad_files]}"}), 400
     
     try:
         worker.upload_files(files)
         uploaded_files =[f.filename for f in files]
+        logger.info(f"Files uploaded successfully: {uploaded_files}")
         return jsonify({"message": "Files uploaded successfully", "files": uploaded_files}), 200
     except Exception as e:
-        print(f"Error during file upload: {e}")
+        logger.error(f"Error during file upload: {e}")
         return jsonify({
             "error": "An error occurred during files upload",
             "details": str(e)
@@ -100,11 +101,12 @@ def delete_file():
     try:
         worker.delete_file(filename)
     except Exception as e:
-        print(f"Error deleting file: {e}")
+        logger.error(f"Error deleting file: {e}")
         return jsonify({
             "error": f"An error occurred while deleting the file {filename}",
             "details": str(e)
         }), 500
+    logger.info(f"File {filename} deleted successfully")
     return jsonify({"message": f"File {filename} deleted successfully"}), 200
 
 # check if the uploaded files are indexed and ready for search
@@ -126,7 +128,7 @@ def check_files_ready():
             indexed = worker.check_document_indexed(filename)
             results[filename] = indexed
         except Exception as e:
-            print(f"Error checking status for {filename}: {e}")
+            logger.error(f"Error checking status for {filename}: {e}")
             results[filename] = False
     
     all_ready = all(results.values())
@@ -142,5 +144,5 @@ init_worker()
 if __name__ == "__main__":
     port = int(os.getenv("FLASK_PORT", "5000"))
     host = os.getenv("FLASK_HOST", "0.0.0.0")
-    print("Running Flask dev server (use Gunicorn in production)")
+    logger.info("Running Flask dev server (use Gunicorn in production)")
     app.run(host=host, port=port, debug=False, use_reloader=False)

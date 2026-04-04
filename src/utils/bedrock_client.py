@@ -3,6 +3,9 @@ from typing import List
 import json
 import boto3
 from botocore.exceptions import ClientError
+import logging
+
+logger = logging.getLogger(__name__)
 
 class BedrockClient:
     def __init__(self):
@@ -13,9 +16,10 @@ class BedrockClient:
         self.region = os.getenv("AWS_REGION", "us-east-1")
         self.client = boto3.client("bedrock-runtime", region_name=self.region)
 
-        print("BedrockClient initialized")
+        logger.info("BedrockClient initialized")
 
     def get_embedding(self, text: str) -> List[float]:
+        logger.info(f"Generating embedding for text of length {len(text)}")
         body = json.dumps({
             "inputText": text,
         })
@@ -37,10 +41,11 @@ class BedrockClient:
             return embedding
 
         except Exception as e:
-            print(f"Error generating embedding: {e}")
+            logger.error(f"Error generating embedding: {e}")
             raise
 
     def generate_answer(self, context, question):
+        logger.info(f"Generating answer for question: {question}")
         body = {
             "anthropic_version": "bedrock-2023-05-31",
             "max_tokens": self.max_tokens,
@@ -58,6 +63,8 @@ class BedrockClient:
 
             parts = data.get("content", [])
             text = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
+            logger.info(f"Generated answer: {text.strip()}")
             return text.strip()
         except ClientError as e:
+            logger.error(f"Bedrock InvokeModel failed: {e.response.get('Error', {}).get('Message')}")
             raise RuntimeError(f"Bedrock InvokeModel failed: {e.response.get('Error', {}).get('Message')}") from e    

@@ -1,18 +1,21 @@
 import os
 from typing import List
+import logging
 
+logger = logging.getLogger(__name__)
 
 class TextChunker:
     def __init__(self):
         self.chunk_size = int(os.getenv("CHUNK_SIZE", "1000"))
         self.chunk_overlap = int(os.getenv("CHUNK_OVERLAP", "200"))
         self.max_chunk_size = int(os.getenv("MAX_CHUNK_SIZE", "1500"))
-        print(
+        logger.info(
             f"TextChunker initialized (chunk_size={self.chunk_size}, "
             f"overlap={self.chunk_overlap}, max={self.max_chunk_size})"
         )
 
     def chunk_text(self, text: str) -> List[str]:
+        logger.info("Chunking text using chunk_text method")
         if not text or not text.strip():
             return []
 
@@ -37,7 +40,7 @@ class TextChunker:
             if start < 0 or start >= len(text):
                 break
 
-        print(f"Split text into {len(chunks)} chunks")
+        logger.info(f"Split text into {len(chunks)} chunks")
         return chunks
 
     def chunk_by_sentences(self, text: str) -> List[str]:
@@ -63,7 +66,7 @@ class TextChunker:
         if current_chunk:
             chunks.append(current_chunk)
 
-        print(f"Split text into {len(chunks)} sentence-based chunks")
+        logger.info(f"Split text into {len(chunks)} sentence-based chunks")
         return chunks
 
     def _find_sentence_boundary(self, text: str, position: int) -> int:

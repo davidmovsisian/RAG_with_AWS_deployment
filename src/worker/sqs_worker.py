@@ -144,3 +144,4 @@ class SQSWorker:
             )
         except Exception as e:
             logger.error(f"Error deleting message from queue: {e}")
+            raise

@@ -30,7 +30,7 @@ class OpenSearchClient:
             max_retries=3,
             retry_on_timeout=True,
         )
-        logger.info("OpenSearchClient initialized with AWS IAM auth")
+        logger.info("OpenSearchClient initialized")
 
     def _knn_mapping_exists(self) -> bool:
         """Check if the index has a proper knn_vector mapping for 'embedding'."""
@@ -82,6 +82,7 @@ class OpenSearchClient:
             self.client.indices.create(index=self.index_name, body=index_body)
         except Exception as e:
             logger.error(f"Error creating index: {e}")
+            raise
 
     # bulk indexing the cnunks
     def index_document(self, chunks:list, filename: str):
@@ -109,7 +110,7 @@ class OpenSearchClient:
             success_count, errors = bulk(self.opensearch_client.client, actions, refresh=True)
             if errors:
                 logger.error(f"Errors occurred during bulk index: {errors}")
-                return
+                raise Exception(f"Errors occurred during bulk index: {errors}")
             logger.info(f"Successfully indexed {success_count}/{total_chunks} chunks for {filename}")
         except Exception as e:  
             logger.error(f"Error preparing bulk index actions: {e}")
@@ -134,6 +135,7 @@ class OpenSearchClient:
 
     def search(self, query_embedding: List[float], top_k: int = 5) -> List[Dict[str, Any]]:
         """Perform KNN vector similarity search."""
+        logger.info(f"Performing search with top_k={top_k}")
         try:
             query = {
                 "size": top_k,
@@ -162,6 +164,7 @@ class OpenSearchClient:
 
     def check_document_indexed(self, filename: str, retries: int = 10, delay: float = 3.0) -> bool:
         """Check if a document is indexed, retrying to account for OpenSearch propagation delay."""
+        logger.info(f"Checking if document '{filename}' is indexed in OpenSearch")
         query = {
                 "query": {
                     "term": {
@@ -177,14 +180,14 @@ class OpenSearchClient:
                     print(f"Document '{filename}' is indexed and visible in OpenSearch")
                     return True
             except Exception as e:
-                print(f"Error checking document status: {e}")
-            print(f"Document '{filename}' not yet visible, retrying ({attempt}/{retries})...")
+                logger.error(f"Error checking document status: {e}")
+            logger.info(f"Document '{filename}' not yet visible, retrying ({attempt}/{retries})...")
             time.sleep(delay)
         return False
     
     def delete_document(self, filename: str) -> bool:
         """Delete all documents with the given filename from the index."""
-        print(f"Processing removal of document: {filename}")
+        logger.info(f"Processing removal of document: {filename}")
         try:
             query = {
                 "query": {
@@ -197,7 +200,7 @@ class OpenSearchClient:
             hits = search_response.get("hits", {}).get("hits", [])
             
             if not hits:
-                print(f"No documents found for {filename}")
+                logger.info(f"No documents found for {filename}")
                 return False
 
             # Prepare bulk delete actions
@@ -213,14 +216,14 @@ class OpenSearchClient:
             # Execute bulk deletion
             success_count, errors = bulk(self.client, actions)  
             if errors:
-                print(f"Errors occurred during deletion: {errors}")
+                logger.error(f"Errors occurred during deletion: {errors}")
 
             while self.check_document_indexed(filename):
-                print(f"Waiting for document '{filename}' to be removed from OpenSearch...")
+                logger.info(f"Waiting for document '{filename}' to be removed from OpenSearch...")
             
-            print(f"Successfully deleted {success_count} chunks for {filename}")
+            logger.info(f"Successfully deleted {success_count} chunks for {filename}")
             return success_count > 0
 
         except Exception as e:
-            print(f"Error deleting document '{filename}': {e}")
+            logger.error(f"Error deleting document '{filename}': {e}")
             return False
