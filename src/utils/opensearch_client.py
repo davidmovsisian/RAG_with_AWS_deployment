@@ -3,14 +3,19 @@ import time
 from typing import Any, Dict, List
 import boto3
 from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth
+from opensearchpy.helpers import bulk
+from utils.bedrock_client import BedrockClient
+import logging
+
+logger = logging.getLogger(__name__)
 
 class OpenSearchClient:
-    def __init__(self):
+    def __init__(self, 
+                 bedrock_client: "BedrockClient"):
+        self.bedrock_client = bedrock_client
         endpoint = os.getenv("OPENSEARCH_ENDPOINT", "")
         self.index_name = os.getenv("OPENSEARCH_INDEX_NAME", "rag-documents")
-        # Parse host and port from endpoint
         host = endpoint.replace("https://", "").replace("http://", "").split(':')[0]
-
         region = os.getenv("AWS_REGION", "us-east-1")
         service = "aoss"  # "aoss" for OpenSearch Serverless, "es" for managed domains
         credentials = boto3.Session().get_credentials()
@@ -25,7 +30,7 @@ class OpenSearchClient:
             max_retries=3,
             retry_on_timeout=True,
         )
-        print("OpenSearchClient initialized with AWS IAM auth")
+        logger.info("OpenSearchClient initialized with AWS IAM auth")
 
     def _knn_mapping_exists(self) -> bool:
         """Check if the index has a proper knn_vector mapping for 'embedding'."""
@@ -36,18 +41,17 @@ class OpenSearchClient:
         except Exception:
             return False
 
-    def create_index(self) -> bool:
+    def create_index(self):
         """Create a KNN-enabled index with HNSW algorithm."""
+        logger.info(f"Creating OpenSearch index: {self.index_name}")
         dimension = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
         try:
             if self.client.indices.exists(index=self.index_name):
                 if self._knn_mapping_exists():
-                    print(f"Index '{self.index_name}' already exists with correct mapping")
+                    logger.info(f"Index '{self.index_name}' already exists with correct mapping")
                     return True
-                print(f"Index '{self.index_name}' exists but has wrong mapping — recreating")
+                logger.info(f"Index '{self.index_name}' exists but has wrong mapping — recreating")
                 self.client.indices.delete(index=self.index_name)
-                print(f"Deleted index '{self.index_name}'")
-
             index_body = {
                 "settings": {
                     "index": {"knn": True}
@@ -76,24 +80,57 @@ class OpenSearchClient:
                 },
             }
             self.client.indices.create(index=self.index_name, body=index_body)
-            print(f"Index '{self.index_name}' created successfully")
-            return True
         except Exception as e:
-            print(f"Error creating index: {e}")
-            return False
+            logger.error(f"Error creating index: {e}")
 
-    def index_document(self, content: str, embedding: List[float], metadata: Dict[str, Any]) -> str:
-        """Index a document chunk with its embedding vector and metadata dict with filename, chunk_id, total_chunks."""
-        document = {
-            "content": content,
-            "embedding": embedding,
-            "metadata": metadata,
-        }
-        response = self.client.index(index=self.index_name, body=document)
-        doc_id = response["_id"]
-        print(f"Indexed document with id={doc_id}")
-        return doc_id
+    # bulk indexing the cnunks
+    def index_document(self, chunks:list, filename: str):
+        logger.info(f"Indexing document '{filename}' with {len(chunks)} chunks")
+        actions = []
+        total_chunks = len(chunks)
 
+        try:
+            for chunk_id, chunk in enumerate(chunks):
+                embedding = self.bedrock_client.get_embedding(chunk)
+                action = {
+                    "_op_type": "index",  # or "create" if you want it to fail if ID exists
+                    "_index": self.index_name,
+                    "_source": {
+                        "content": chunk,
+                        "embedding": embedding,
+                        "metadata": {
+                            "filename": filename,
+                            "chunk_id": chunk_id,
+                            "total_chunks": total_chunks,
+                        }
+                    }
+                }
+                actions.append(action)
+            success_count, errors = bulk(self.opensearch_client.client, actions, refresh=True)
+            if errors:
+                logger.error(f"Errors occurred during bulk index: {errors}")
+                return
+            logger.info(f"Successfully indexed {success_count}/{total_chunks} chunks for {filename}")
+        except Exception as e:  
+            logger.error(f"Error preparing bulk index actions: {e}")
+            raise
+
+    # def index_document(self, content: str, embedding: List[float], metadata: Dict[str, Any]) -> str:
+    #     """Index a document chunk with its embedding vector and metadata dict with filename, chunk_id, total_chunks."""
+    #     logger.info(f"Indexing document with metadata: {metadata}")
+    #     try:
+    #         document = {
+    #             "content": content,
+    #             "embedding": embedding,
+    #             "metadata": metadata,
+    #         }
+    #         response = self.client.index(index=self.index_name, body=document)
+    #         doc_id = response["_id"]
+    #         logger.info(f"Indexed document with id={doc_id}")
+    #         return doc_id
+    #     except Exception as e:
+    #         logger.error(f"Error indexing document: {e}")
+    #         raise
 
     def search(self, query_embedding: List[float], top_k: int = 5) -> List[Dict[str, Any]]:
         """Perform KNN vector similarity search."""
@@ -117,28 +154,12 @@ class OpenSearchClient:
                         "metadata": hit["_source"].get("metadata", {}),
                     }
                 )
-            print(f"Search returned {len(results)} results")
+            logger.info(f"Search returned {len(results)} results")
             return results
         except Exception as e:
-            print(f"Error performing search: {e}")
+            logger.error(f"Error performing search: {e}")
             raise
 
-    # def search_by_metadata(self, field: str, value: str) -> List[Dict[str, Any]]:
-    #     """Search documents by metadata field (e.g., filename)."""
-    #     try:
-    #         query = {
-    #             "query": {
-    #                 "term": {
-    #                     f"metadata.{field}": value
-    #                 }
-    #             }
-    #         }
-    #         response = self.client.search(index=self.index_name, body=query)
-    #         return response
-    #     except Exception as e:
-    #         print(f"Error searching by metadata: {e}")
-    #         return []
-    
     def check_document_indexed(self, filename: str, retries: int = 10, delay: float = 3.0) -> bool:
         """Check if a document is indexed, retrying to account for OpenSearch propagation delay."""
         query = {
@@ -160,22 +181,46 @@ class OpenSearchClient:
             print(f"Document '{filename}' not yet visible, retrying ({attempt}/{retries})...")
             time.sleep(delay)
         return False
-        
-    # def delete_document(self, doc_id: str) -> bool:
-    #     """Delete a document by ID from the index."""
-    #     try:
-    #         self.client.delete(index=self.index_name, id=doc_id)
-    #         for attempt in range(1, 10):
-    #             try:
-    #                 self.client.get(index=self.index_name, id=doc_id)
-    #                 print(f"Document {doc_id} still exists after deletion attempt {attempt}")
-    #                 time.sleep(5)
-    #             except Exception:
-    #                 print(f"Confirmed deletion of document with id={doc_id}")
-    #                 return True
-    #             time.sleep(5)
-    #         print(f"Failed to delete document with id={doc_id}")
-    #         return False
-    #     except Exception as e:
-    #         print(f"Error deleting document {doc_id}: {e}")
-    #         return False
+    
+    def delete_document(self, filename: str) -> bool:
+        """Delete all documents with the given filename from the index."""
+        print(f"Processing removal of document: {filename}")
+        try:
+            query = {
+                "query": {
+                    "term": { "metadata.filename": filename }
+                },
+                "_source": False  # We only need the IDs, not the content
+            }
+            
+            search_response = self.client.search(index=self.index_name, body=query)
+            hits = search_response.get("hits", {}).get("hits", [])
+            
+            if not hits:
+                print(f"No documents found for {filename}")
+                return False
+
+            # Prepare bulk delete actions
+            actions = [
+                {
+                    "_op_type": "delete",
+                    "_index": self.index_name,
+                    "_id": hit["_id"]
+                }
+                for hit in hits
+            ]
+
+            # Execute bulk deletion
+            success_count, errors = bulk(self.client, actions)  
+            if errors:
+                print(f"Errors occurred during deletion: {errors}")
+
+            while self.check_document_indexed(filename):
+                print(f"Waiting for document '{filename}' to be removed from OpenSearch...")
+            
+            print(f"Successfully deleted {success_count} chunks for {filename}")
+            return success_count > 0
+
+        except Exception as e:
+            print(f"Error deleting document '{filename}': {e}")
+            return False

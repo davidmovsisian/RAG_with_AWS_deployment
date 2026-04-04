@@ -20,18 +20,11 @@ def main():
 
     s3_client = S3Client()
     bedrock_client = BedrockClient()
-    opensearch_client = OpenSearchClient()
+    opensearch_client = OpenSearchClient(bedrock_client)
     text_chunker = TextChunker()
 
     opensearch_client.create_index()
-
-    document_processor = DocumentProcessor(
-        bedrock_client,
-        opensearch_client,
-        text_chunker
-    )
-
-    sqs_worker = SQSWorker(sqs_client, s3_client, document_processor)
+    sqs_worker = SQSWorker(sqs_client, s3_client, text_chunker, opensearch_client)
 
     # Handle shutdown gracefully
     def shutdown_handler(signum, frame):
@@ -42,7 +35,7 @@ def main():
     signal.signal(signal.SIGINT, shutdown_handler)
     signal.signal(signal.SIGTERM, shutdown_handler)
 
-    # Start polling loop (blocking)
+    # Start polling loop
     sqs_worker.poll_and_process()
 
 
