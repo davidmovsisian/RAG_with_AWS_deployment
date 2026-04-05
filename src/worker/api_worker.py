@@ -66,10 +66,10 @@ class ApiWorker:
             logger.error(f"Error deleting file: {e}")
             raise
 
-    def check_document_indexed(self, filename: str, isExists: bool = True) -> bool:
+    def check_document_indexed(self, filename: str, isVisible: bool = True) -> bool:
         logger.info(f"Checking if document is indexed: {filename}")
         try:
-            return self.opensearch_client.check_document_indexed(filename, isExists=isExists)
+            return self.opensearch_client.check_document_indexed(filename, isVisible=isVisible)
         except Exception as e:
             logger.error(f"Error checking if document is indexed: {e}")
             return False

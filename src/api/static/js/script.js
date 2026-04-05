@@ -148,7 +148,7 @@ async function pollFilesReady(filenames, statusEl, uploadBtn) {
             const response = await fetch('/check-files-ready', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ files: filenames , 'isExists': true })
+                body: JSON.stringify({ files: filenames , 'isVisible': true })
             });
             
             const data = await response.json();
@@ -413,7 +413,7 @@ async function pollFileDeleted(filename, statusEl) {
             const response = await fetch('/check-files-ready', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ files: [filename], 'isExists': false })
+                body: JSON.stringify({ files: [filename], 'isVisible': false })
             });
             
             const data = await response.json();

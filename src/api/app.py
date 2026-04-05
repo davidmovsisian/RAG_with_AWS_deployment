@@ -118,17 +118,17 @@ def check_files_ready():
     
     data = request.get_json()
     filenames = data.get("files", [])
-    isExists = data.get("isExists", None)
+    isVisible = data.get("isVisible", None)
     
     if not filenames:
         return jsonify({"error": "No files provided"}), 400
-    if isExists is None:
-        return jsonify({"error": "isExists parameter is required"}), 400
-        
+    if isVisible is None:
+        return jsonify({"error": "isVisible parameter is required"}), 400
+    
     results = {}
     for filename in filenames:
         try:
-            indexed = worker.check_document_indexed(filename, isExists=isExists)
+            indexed = worker.check_document_indexed(filename, isVisible=isVisible)
             results[filename] = indexed
         except Exception as e:
             logger.error(f"Error checking status for {filename}: {e}")
