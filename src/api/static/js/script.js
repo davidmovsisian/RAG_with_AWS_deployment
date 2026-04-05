@@ -179,7 +179,7 @@ async function pollFilesReady(filenames, statusEl, uploadBtn) {
             }
             
             // Wait 5 seconds before next iteration
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            // await new Promise(resolve => setTimeout(resolve, 5000));
             
         } catch (error) {
             console.error('Error checking file status:', error);
