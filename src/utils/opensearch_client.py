@@ -143,7 +143,10 @@ class OpenSearchClient:
             logger.error(f"Error performing search: {e}")
             raise
 
-    def check_document_indexed(self, filename: str, retries: int = 10, delay: float = 3.0) -> bool:
+    # isExists is used to check if the document is indexed or not
+    # if isExists is True, it will check if the document is indexed, 
+    # if isExists is False, it will check if the document is deleted
+    def check_document_indexed(self, filename: str, retries: int = 10, delay: float = 3.0, isExists: bool = True) -> bool:
         """Check if a document is indexed, retrying to account for OpenSearch propagation delay."""
         logger.info(f"Checking if document '{filename}' is indexed in OpenSearch")
         query = {
@@ -158,14 +161,19 @@ class OpenSearchClient:
                 response = self.client.search(index=self.index_name, body=query)
                 hits = response.get("hits", {}).get("hits", [])
                 if hits:
-                    logger.info(f"Document '{filename}' is indexed and visible in OpenSearch")
-                    return True
+                    logger.info(f"Document '{filename}' is visible, retrying ({attempt}/{retries})...")
+                    if isExists:
+                        return True
+                else:
+                    logger.info(f"Document '{filename}' not visible, retrying ({attempt}/{retries})...")
+                    if not isExists:
+                        return True
             except Exception as e:
                 logger.error(f"Error checking document status: {e}")
-            logger.info(f"Document '{filename}' not yet visible, retrying ({attempt}/{retries})...")
             time.sleep(delay)
         return False
     
+    # bulk delete document by filename
     def delete_document(self, filename: str) -> bool:
         """Delete all documents with the given filename from the index."""
         logger.info(f"Processing removal of document: {filename}")
@@ -199,9 +207,6 @@ class OpenSearchClient:
             if errors:
                 logger.error(f"Errors occurred during deletion: {errors}")
 
-            # while self.check_document_indexed(filename):
-            #     logger.info(f"Waiting for document '{filename}' to be removed from OpenSearch...")
-            
             logger.info(f"Successfully deleted {success_count} chunks for {filename}")
             return success_count > 0
 

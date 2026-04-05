@@ -119,18 +119,13 @@ async function uploadFiles() {
             const msg = data.error || 'Upload failed. Please try again.';
             setStatus(statusEl, msg, 'error');
             uploadBtn.disabled = false;
-        } else {
-            fileInput.value = ''; // Clear the file input after success
-            
-            // Start polling for file readiness
-            if (data.files && data.files.length > 0) {
-                await pollFilesReady(data.files, statusEl, uploadBtn);
-            } else {
-                setStatus(statusEl, 'Files uploaded successfully.', 'success');
-                uploadBtn.disabled = false;
-                loadFiles();
-            }
-        }
+            return;
+        } 
+        
+        fileInput.value = ''; // Clear the file input after success
+        if (data.files && data.files.length > 0) 
+            await pollFilesReady(data.files, statusEl, uploadBtn);
+
     } catch (err) {
         setStatus(statusEl, 'Network error during upload.', 'error');
         uploadBtn.disabled = false;
@@ -153,7 +148,7 @@ async function pollFilesReady(filenames, statusEl, uploadBtn) {
             const response = await fetch('/check-files-ready', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ files: filenames })
+                body: JSON.stringify({ files: filenames , 'isExists': true })
             });
             
             const data = await response.json();
@@ -163,6 +158,7 @@ async function pollFilesReady(filenames, statusEl, uploadBtn) {
                 setStatus(statusEl, `All ${filenames.length} file(s) are ready!`, 'success');
                 uploadBtn.disabled = false;
                 loadFiles();
+
                 // Clear success message after 2 seconds
                 setTimeout(() => setStatus(statusEl, '', ''), 2000);
                 return;
@@ -190,10 +186,7 @@ async function pollFilesReady(filenames, statusEl, uploadBtn) {
             loadFiles();
             return;
         }
-
     }
-
-    setStatus(statusEl, 'Sync timed out. Check back later.', 'error');
 }
 
 /* =============================================
@@ -354,7 +347,6 @@ function displayFileTabs(files) {
 /* =============================================
    Delete File  (/delete-file)
    ============================================= */
-
 /**
  * Sends a DELETE request to remove a file, then refreshes the list.
  * @param {string} filename
@@ -380,7 +372,7 @@ async function deleteFileHandler(filename) {
 
         const data = await response.json();
 
-         if (!response.ok) {
+        if (!response.ok) {
             const msg = data.error || 'Deletion failed. Please try again.';
             setStatus(statusEl, msg, 'error');
             // Remove the deleting state if deletion failed
@@ -403,15 +395,13 @@ async function deleteFileHandler(filename) {
             }
         });
     }
-
-    // // Refresh the file list after a short delay
-    // setTimeout(() => {
-    //     loadFiles();
-    //     // Clear success/error message after displaying files
-    //     setTimeout(() => setStatus(statusEl, '', ''), 3000);
-    // }, 500);
 }
 
+/**
+ * Poll until the file is confirmed deleted (no longer indexed in OpenSearch)
+ * @param {string} filename
+ * @param {HTMLElement} statusEl
+ */
 async function pollFileDeleted(filename, statusEl) {
     const maxAttempts = 60;
     let attempts = 0;
@@ -423,7 +413,7 @@ async function pollFileDeleted(filename, statusEl) {
             const response = await fetch('/check-files-ready', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ files: [filename] })
+                body: JSON.stringify({ files: [filename], 'isExists': false })
             });
             
             const data = await response.json();
@@ -433,23 +423,19 @@ async function pollFileDeleted(filename, statusEl) {
                 setStatus(statusEl, `File deleted successfully: ${filename}`, 'success');
                 loadFiles();
                 
-                // Clear success message after 3 seconds
-                setTimeout(() => setStatus(statusEl, '', ''), 3000);
+                // Clear success message after 2 seconds
+                setTimeout(() => setStatus(statusEl, '', ''), 2000);
                 return;
             }
-            setStatus(statusEl, `Deleting ${filename}... (attempt ${attempts}/${maxAttempts})`, '');
+
             if (attempts >= maxAttempts) {
-                setStatus(statusEl, 'Deletion is taking longer than expected. Please refresh to verify.', 'error');
+                setStatus(statusEl, 'Deletion is taking longer than expected', 'error');
                 loadFiles();
                 return;
             }
-            
-            // Wait 2 seconds before next check
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
         } catch (error) {
             console.error('Error checking file deletion status:', error);
-            setStatus(statusEl, 'Error verifying file deletion. Please refresh to verify.', 'error');
+            setStatus(statusEl, 'Error verifying file deletion', 'error');
             loadFiles();
             return;
         }
