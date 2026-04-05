@@ -32,7 +32,7 @@ This RAG system follows a microservices architecture with two main workers: **AP
        ▼
 ┌─────────────────────────────────────────────────┐
 │            EC2 Instance (API Worker)            │
-│  ┌──────────────────────────────────────────┐  │
+│  ┌──────────────────────────────────────────┐   │
 │  │  Flask API                                │  │
 │  │  - Upload endpoint                        │  │
 │  │  - Ask endpoint                           │  │
@@ -44,7 +44,7 @@ This RAG system follows a microservices architecture with two main workers: **AP
         │                     │            │
         ▼                     ▼            ▼
    ┌────────┐          ┌─────────────┐  ┌──────────────┐
-   │   S3   │          │  OpenSearch │  │ Gemini API   │
+   │   S3   │          │  OpenSearch │  │ Bedrock API  │
    │ Bucket │◄─────┐   │  Collection │  │ (Embedding & │
    └────┬───┘      │   └─────────────┘  │     LLM)     │
         │          │                    └──────────────┘
@@ -78,16 +78,16 @@ This RAG system follows a microservices architecture with two main workers: **AP
 4. SQS Worker polls queue and receives message
 5. Worker downloads file from S3
 6. Document is chunked (500 chars with 50 char overlap)
-7. Each chunk is embedded using **Gemini Embedding API**
-8. Chunks + embeddings are indexed to **OpenSearch**
+7. Each chunk is embedded using **AWS Bedrock-> Embedding model**
+8. Chunks + embeddings are indexed to **OpenSearch serverless**
 9. Frontend polls until document is fully indexed
 
 #### Query Flow:
 1. User submits question via web interface
-2. API Worker generates question embedding using **Gemini API**
+2. API Worker generates question embedding using **AWS Bedrock **
 3. OpenSearch performs KNN vector similarity search
 4. Top-k most relevant chunks are retrieved
-5. Context + question sent to **Gemini LLM**
+5. Context + question sent to **Bedrock -> LLM**
 6. AI-generated answer returned to user with source citations
 
 ---
@@ -117,14 +117,13 @@ Background processor that:
 
 **Key Files:**
 - `sqs_worker.py` - Message polling and processing
-- `document_processor.py` - Chunking and indexing logic
 
 ### 3. Utility Modules (`src/utils/`)
 - `s3_client.py` - S3 operations (upload, download, list, delete)
 - `opensearch_client.py` - OpenSearch indexing and search
-- `gemini_client.py` - Gemini API for embeddings and LLM
+- `bedrock_client.py` - Bedrock API for embeddings and LLM
 - `chunking.py` - Text chunking with overlap
-- `pdf_extractor.py` - PDF text extraction
+
 
 ### 4. Infrastructure Scripts (`infrastructure/`)
 Automated AWS resource provisioning:
@@ -132,7 +131,7 @@ Automated AWS resource provisioning:
 2. `2_create_sqs_queue.py` - SQS queue with S3 permissions
 3. `3_setup_s3_event.py` - S3 event notifications to SQS
 4. `4_create_iam_role.py` - EC2 IAM role with permissions
-5. `5_setup_opensearch.py` - OpenSearch collection 
+5. `5_setup_opensearch.py` - OpenSearch serverless collection 
 6. `6_launch_ec2.py` - EC2 instance with setup scripts
 
 ---
@@ -142,25 +141,19 @@ Automated AWS resource provisioning:
 | Component | Technology |
 |-----------|-----------|
 | **Frontend** | HTML, CSS, Vanilla JavaScript |
-| **Backend API** | Python Flask |
+| **Backend API** | Python Flask/Gunicorn |
 | **Background Worker** | Python (SQS polling) |
 | **Vector Database** | AWS OpenSearch Serverless (VECTORSEARCH) |
 | **Storage** | AWS S3 |
 | **Message Queue** | AWS SQS |
 | **Compute** | AWS EC2 (t3.small) |
-| **Embeddings** | Google Gemini Embedding API (768d) |
-| **LLM** | Google Gemini 2.5 Flash |
+| **Embeddings** | amazon.titan-embed-text-v1 |
+| **LLM** | us.anthropic.claude-3-5-haiku-20241022-v1:0 |
 | **PDF Processing** | PyPDF2 |
 
 ---
 
 ## 📦 Prerequisites
-
-### Local Development
-- Python 3.9+
-- AWS Account with appropriate permissions
-- Google Gemini API Key ([Get one here](https://ai.google.dev/))
-
 ### AWS Permissions Required
 - S3 (full access)
 - SQS (full access)
@@ -205,12 +198,12 @@ SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/ACCOUNT_ID/rag-class-docs-queu
 OPENSEARCH_ENDPOINT=https://your-opensearch-domain.us-east-1.es.amazonaws.com
 OPENSEARCH_INDEX_NAME=rag-documents
 
-# Gemini API Configuration
-GEMINI_API_KEY=your-gemini-api-key
-GEMINI_EMBEDDING_MODEL=models/embedding-001
-GEMINI_LLM_MODEL=gemini-2.0-flash-exp
-EMBEDDING_DIMENSION=768
-GEMINI_POOL_SIZE=5
+# Bedrock Configuration
+EMBEDDING_MODEL=amazon.titan-embed-text-v1
+LLM_MODEL=us.anthropic.claude-3-5-haiku-20241022-v1:0
+MAX_TOKENS=4096
+TEMPERATURE=0.2
+EMBEDDING_DIMENSION=1536
 
 # Flask Configuration
 FLASK_HOST=0.0.0.0

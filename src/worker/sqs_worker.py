@@ -43,6 +43,7 @@ class SQSWorker:
 
     def poll_and_process(self):
         logger.info("Starting SQS worker polling loop...")
+        self.sqs_client.purge_queue(QueueUrl=self.queue_url)
         while not self.stop_event.is_set():
             try:
                 response = self.sqs_client.receive_message(

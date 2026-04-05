@@ -2,25 +2,36 @@ import os
 import signal
 import boto3
 from dotenv import load_dotenv
-from utils.bedrock_client import BedrockClient
+# from utils.bedrock_client import BedrockClient
 from utils.opensearch_client import OpenSearchClient
 from utils.s3_client import S3Client
 from utils.chunking import TextChunker
-from utils.document_processor import DocumentProcessor
 from worker.sqs_worker import SQSWorker
+import logging
 
+logger = logging.getLogger(__name__)
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 
+def configure_logging() -> None:
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        force=True,
+    )
+
+
 def main():
-    print("Starting SQS Worker...")
+    configure_logging()
+    logger.info("Starting SQS Worker...")
 
     region = os.getenv("AWS_REGION", "us-east-1")
     sqs_client = boto3.client("sqs", region_name=region)
 
     s3_client = S3Client()
-    bedrock_client = BedrockClient()
-    opensearch_client = OpenSearchClient(bedrock_client)
+    # bedrock_client = BedrockClient()
+    opensearch_client = OpenSearchClient()
     text_chunker = TextChunker()
 
     opensearch_client.create_index()
@@ -28,9 +39,9 @@ def main():
 
     # Handle shutdown gracefully
     def shutdown_handler(signum, frame):
-        print("Shutting down SQS Worker...")
+        logger.info("Shutting down SQS Worker...")
         sqs_worker.stop()
-        print("SQS Worker stopped")
+        logger.info("SQS Worker stopped")
 
     signal.signal(signal.SIGINT, shutdown_handler)
     signal.signal(signal.SIGTERM, shutdown_handler)

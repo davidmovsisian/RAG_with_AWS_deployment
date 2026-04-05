@@ -2,13 +2,23 @@ from utils.opensearch_client import OpenSearchClient
 from utils.s3_client import S3Client
 from utils.bedrock_client import BedrockClient
 import logging
+import os
 
 logger = logging.getLogger(__name__)
+def configure_logging() -> None:
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        force=True,
+    )
+
+configure_logging()
 
 class ApiWorker:
     def __init__(self):
         logger.info("Initializing ApiWorker...")
-        
+                
         self.s3_client = S3Client()
         self.bedrock_client = BedrockClient()
         self.opensearch_client = OpenSearchClient()
@@ -51,7 +61,6 @@ class ApiWorker:
     def delete_file(self, filename: str):
         logger.info(f"Deleting file: {filename}")
         try:
-            self.opensearch_client.delete_document(filename)
             self.s3_client.delete_file(filename)
         except Exception as e:
             logger.error(f"Error deleting file: {e}")
