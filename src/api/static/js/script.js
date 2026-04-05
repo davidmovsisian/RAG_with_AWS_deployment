@@ -163,6 +163,8 @@ async function pollFilesReady(filenames, statusEl, uploadBtn) {
                 setStatus(statusEl, `All ${filenames.length} file(s) are ready!`, 'success');
                 uploadBtn.disabled = false;
                 loadFiles();
+                // Clear success message after 2 seconds
+                setTimeout(() => setStatus(statusEl, '', ''), 2000);
                 return;
             }
             
@@ -358,10 +360,6 @@ function displayFileTabs(files) {
  * @param {string} filename
  */
 async function deleteFileHandler(filename) {
-    // if (!confirm(`Are you sure you want to delete "${filename}"?`)) {
-    //     return;
-    // }
-
     const statusEl = document.getElementById('uploadStatus');
     // Visually mark the tab as being deleted
     const tabs = document.querySelectorAll('.file-tab');
@@ -370,6 +368,8 @@ async function deleteFileHandler(filename) {
             tab.classList.add('deleting');
         }
     });
+
+    setStatus(statusEl, `Deleting ${filename}...`, '');
 
     try {
         const response = await fetch('/delete-file', {
@@ -380,22 +380,80 @@ async function deleteFileHandler(filename) {
 
         const data = await response.json();
 
-        if (response.ok) {
-            console.log(`Deleted: ${filename}`);
-            setStatus(statusEl, `File deleted successfully: ${filename}`, 'success');
-        } else {
-            setStatus(statusEl, `Error deleting file: ${data.error || 'An unexpected error occurred.'}`, 'error');
+         if (!response.ok) {
+            const msg = data.error || 'Deletion failed. Please try again.';
+            setStatus(statusEl, msg, 'error');
+            // Remove the deleting state if deletion failed
+            tabs.forEach(tab => {
+                if (tab.querySelector('.file-name').textContent === filename) {
+                    tab.classList.remove('deleting');
+                }
+            });
+            return;
         }
+
+        await pollFileDeleted(filename, statusEl);
+
     } catch (error) {
         setStatus(statusEl, `Network error while deleting file: ${error.message}`, 'error');
+        // Remove the deleting state on error
+        tabs.forEach(tab => {
+            if (tab.querySelector('.file-name').textContent === filename) {
+                tab.classList.remove('deleting');
+            }
+        });
     }
 
-    // Refresh the file list after a short delay
-    setTimeout(() => {
-        loadFiles();
-        // Clear success/error message after displaying files
-        setTimeout(() => setStatus(statusEl, '', ''), 3000);
-    }, 500);
+    // // Refresh the file list after a short delay
+    // setTimeout(() => {
+    //     loadFiles();
+    //     // Clear success/error message after displaying files
+    //     setTimeout(() => setStatus(statusEl, '', ''), 3000);
+    // }, 500);
+}
+
+async function pollFileDeleted(filename, statusEl) {
+    const maxAttempts = 60;
+    let attempts = 0;
+    
+    while (attempts < maxAttempts) {
+        attempts++;
+        
+        try {
+            const response = await fetch('/check-files-ready', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ files: [filename] })
+            });
+            
+            const data = await response.json();
+            
+            // Check if the file is no longer indexed (all_ready == false means file not found)
+            if (data.all_ready === false || data.files[filename] === false) {
+                setStatus(statusEl, `File deleted successfully: ${filename}`, 'success');
+                loadFiles();
+                
+                // Clear success message after 3 seconds
+                setTimeout(() => setStatus(statusEl, '', ''), 3000);
+                return;
+            }
+            setStatus(statusEl, `Deleting ${filename}... (attempt ${attempts}/${maxAttempts})`, '');
+            if (attempts >= maxAttempts) {
+                setStatus(statusEl, 'Deletion is taking longer than expected. Please refresh to verify.', 'error');
+                loadFiles();
+                return;
+            }
+            
+            // Wait 2 seconds before next check
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+        } catch (error) {
+            console.error('Error checking file deletion status:', error);
+            setStatus(statusEl, 'Error verifying file deletion. Please refresh to verify.', 'error');
+            loadFiles();
+            return;
+        }
+    }
 }
 
 /* =============================================
