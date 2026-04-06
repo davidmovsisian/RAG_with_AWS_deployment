@@ -112,7 +112,7 @@ Background processor that:
 - Polls SQS queue for document events
 - Extracts text from PDF/TXT files
 - Chunks documents into manageable pieces
-- Generates embeddings via Gemini API
+- Generates embeddings via AWS Bedrock
 - Indexes to OpenSearch with metadata
 
 **Key Files:**
@@ -160,6 +160,9 @@ Automated AWS resource provisioning:
 - OpenSearch (full access)
 - EC2 (full access)
 - IAM (role creation)
+- **AWS Bedrock** (InvokeModel permissions for foundation models)
+- AWS Bedrock access enabled in your AWS account
+- Bedrock model access granted for Titan Embeddings and Claude models
 
 ---
 
@@ -337,9 +340,11 @@ python setup.py cleanup --env ../.env
 | `S3_BUCKET` | S3 bucket name | `{PROJECT_NAME}-docs-{TEAM_NAME}` |
 | `SQS_QUEUE_URL` | Full SQS queue URL | Auto-generated |
 | `OPENSEARCH_ENDPOINT` | OpenSearch collection endpoint | Auto-generated |
-| `GEMINI_API_KEY` | Google Gemini API key | Required |
-| `EMBEDDING_DIMENSION` | Embedding vector dimension | `768` |
-| `GEMINI_POOL_SIZE` | Connection pool size | `5` |
+| `EMBEDDING_MODEL` | AWS Bedrock embedding model ID | `amazon.titan-embed-text-v1` |
+| `LLM_MODEL` | AWS Bedrock LLM model ID | `us.anthropic.claude-3-5-haiku-20241022-v1:0` |
+| `EMBEDDING_DIMENSION` | Embedding vector dimension | `1536` |
+| `MAX_TOKENS` | Maximum tokens for LLM response | `1000` |
+| `TEMPERATURE` | LLM temperature (0-1) | `0.7` |
 | `WORKER_POLL_INTERVAL` | SQS polling interval (seconds) | `5` |
 
 ---
@@ -375,6 +380,18 @@ aws s3api get-bucket-notification-configuration --bucket YOUR_BUCKET_NAME
 - View OpenSearch index: Login to OpenSearch Dashboard
 - Check SQS worker logs for processing errors
 
+### Bedrock Model Access Issues
+
+```bash
+# Check if Bedrock models are available in your region
+aws bedrock list-foundation-models --region us-east-1
+
+# Verify IAM role has Bedrock permissions
+aws iam get-role-policy --role-name rag-class-ec2-role-your-team-name --policy-name rag-class-ec2-policy-your-team-name
+```
+
+**Note:** If you get "Access Denied" errors, you may need to request model access through the AWS Bedrock console.
+
 ### API Worker Crashes
 
 ```bash
@@ -405,7 +422,7 @@ RAG_with_AWS_deployment/
 │   ├── utils/
 │   │   ├── s3_client.py
 │   │   ├── opensearch_client.py
-│   │   ├── gemini_client.py
+│   │   ├── bedrock_client.py
 │   │   ├── chunking.py
 │   │   └── pdf_extractor.py
 │   └── sqs_worker_main.py         # SQS worker entry point
