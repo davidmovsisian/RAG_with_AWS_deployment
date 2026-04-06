@@ -109,7 +109,7 @@ Both services run concurrently on the same EC2 instance and share access to AWS 
 #### Query Flow:
 1. User submits question via web interface
 2. **API Worker generates question embedding** using **AWS Bedrock Titan**
-3. **API Worker performs KNN vector similarity search** in OpenSearch
+3. **API Worker queries OpenSearch** to perform KNN vector similarity search
 4. Top-k most relevant chunks are retrieved
 5. Context + question sent to **AWS Bedrock Claude 3.5 Haiku**
 6. AI-generated answer returned to user with source citations
