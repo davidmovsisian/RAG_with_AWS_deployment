@@ -26,7 +26,21 @@
     {
       "Sid": "TextractAccess",
       "Effect": "Allow",
-      "Action": ["textract:DetectDocumentText", "textract:AnalyzeDocument"],
+      "Action": [
+        "textract:DetectDocumentText",
+        "textract:AnalyzeDocument",
+        "textract:StartDocumentTextDetection",
+        "textract:GetDocumentTextDetection"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "BedrockAccess",
+      "Effect": "Allow",
+      "Action": [
+        "bedrock:InvokeModel",
+        "bedrock:InvokeModelWithResponseStream"
+      ],
       "Resource": "*"
     }
   ]

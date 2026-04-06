@@ -5,9 +5,12 @@ from botocore.exceptions import ClientError
 import time
 from io import BytesIO
 from pypdf import PdfReader
+import logging
+
+logger = logging.getLogger(__name__)
 
 #use AWS Textractor to extract text from PDF files. 
-class PDFExtractor:
+class TextractClient:
     # Max file size limits
     MAX_SYNC_PAGES = 1  # Synchronous API supports only single-page documents
     MAX_ASYNC_PAGES = 3000  # Asynchronous API supports up to 3,000 pages
@@ -18,25 +21,25 @@ class PDFExtractor:
         self.textract_client = boto3.client("textract", region_name=region)
         self.s3_client = boto3.client("s3", region_name=region)
         self.bucket_name = os.getenv("S3_BUCKET_NAME", "")
-        print(f"PDFExtractor initialized with AWS Textract (region={region})")
+        logger.info(f"TextractClient initialized with AWS Textract (region={region})")
     
     def extract_text_from_pdf(self, pdf_bytes: bytes, s3_key: str = None) -> Optional[str]:
         file_size = len(pdf_bytes)
         
-        print(f"[Textract] Processing {s3_key}")
+        logger.info(f"[Textract] Processing {s3_key}")
 
         if file_size > self.MAX_FILE_SIZE:
-            print(f"[Textract] Error: File too large ({file_size} bytes). Max is {self.MAX_FILE_SIZE} bytes.")
+            logger.error(f"[Textract] Error: File too large ({file_size} bytes). Max is {self.MAX_FILE_SIZE} bytes.")
             return None
         
         num_pages = self._count_pdf_pages(pdf_bytes)
         if num_pages is None:
-            print(f"[Textract] Error: Could not determine page count for {s3_key}")
+            logger.info(f"[Textract] Error: Could not determine page count for {s3_key}")
             return None
         if num_pages > self.MAX_ASYNC_PAGES:
-            print(f"[Textract] Error: Too many pages ({num_pages}). Max is {self.MAX_ASYNC_PAGES} pages.")
+            logger.error(f"[Textract] Error: Too many pages ({num_pages}). Max is {self.MAX_ASYNC_PAGES} pages.")
             return None
-        print(f"[Textract] PDF has {num_pages} page(s)")
+        logger.info(f"[Textract] PDF has {num_pages} page(s)")
 
         if num_pages == self.MAX_SYNC_PAGES:
             return self._extract_sync(pdf_bytes, s3_key)
@@ -44,7 +47,7 @@ class PDFExtractor:
             if s3_key:
                 return self._extract_async(s3_key)
             else:
-                print(f"[Textract] File exceeds {num_pages} but no S3 key provided. Cannot use async API.")
+                logger.error(f"[Textract] File exceeds {num_pages} but no S3 key provided. Cannot use async API.")
                 return None
     
     def _count_pdf_pages(self, pdf_bytes: bytes) -> Optional[int]:
@@ -54,7 +57,7 @@ class PDFExtractor:
             num_pages = len(reader.pages)
             return num_pages
         except Exception as e:
-            print(f"[Textract] Error counting pages: {e}")
+            logger.error(f"[Textract] Error counting pages: {e}")
             return None
         
     def _extract_sync(self, pdf_bytes: bytes, s3_key: str) -> Optional[str]:
@@ -66,10 +69,10 @@ class PDFExtractor:
             if text:
                 return text
             else:
-                print(f"[Textract] No text extracted from {s3_key}")
+                logger.info(f"[Textract] No text extracted from {s3_key}")
                 return None
         except Exception as e:
-            print(f"[Textract] Error on text extraction: {e}")
+            logger.error(f"[Textract] Error on text extraction: {e}")
             return None
     
     def _extract_async(self, s3_key: str) -> Optional[str]:
@@ -85,7 +88,7 @@ class PDFExtractor:
             )
             
             job_id = response['JobId']
-            print(f"[Textract] Started job {job_id} for {s3_key}")
+            logger.info(f"[Textract] Started job {job_id} for {s3_key}")
             
             # Poll for completion
             max_wait_time = 300  # 5 minutes
@@ -98,24 +101,24 @@ class PDFExtractor:
                 
                 result = self.textract_client.get_document_text_detection(JobId=job_id)
                 status = result['JobStatus']
-                print(f"[Textract] Job {job_id} status: {status} ({elapsed_time}s elapsed)")
+                logger.info(f"[Textract] Job {job_id} status: {status} ({elapsed_time}s elapsed)")
                 if status == 'SUCCEEDED':
                     # Extract text from all pages
                     text = self._parse_textract_async_response(job_id)
                     if text:
                         return text
                     else:
-                        print(f"[Textract] No text extracted from {s3_key}")
+                        logger.info(f"[Textract] No text extracted from {s3_key}")
                         return None
                         
                 elif status == 'FAILED':
-                    print(f"[Textract] Job {job_id} failed")
+                    logger.error(f"[Textract] Job {job_id} failed")
                     return None
             
-            print(f"[Textract] Job {job_id} timed out after {max_wait_time}s")
+            logger.error(f"[Textract] Job {job_id} timed out after {max_wait_time}s")
             return None
         except Exception as e:
-            print(f"[Textract] Error on text extraction: {e}")
+            logger.error(f"[Textract] Error on text extraction: {e}")
             return None
     
     def _parse_textract_response(self, response: dict) -> Optional[str]:

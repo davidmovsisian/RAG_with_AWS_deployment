@@ -119,18 +119,13 @@ async function uploadFiles() {
             const msg = data.error || 'Upload failed. Please try again.';
             setStatus(statusEl, msg, 'error');
             uploadBtn.disabled = false;
-        } else {
-            fileInput.value = ''; // Clear the file input after success
-            
-            // Start polling for file readiness
-            if (data.files && data.files.length > 0) {
-                await pollFilesReady(data.files, statusEl, uploadBtn);
-            } else {
-                setStatus(statusEl, 'Files uploaded successfully.', 'success');
-                uploadBtn.disabled = false;
-                loadFiles();
-            }
-        }
+            return;
+        } 
+        
+        fileInput.value = ''; // Clear the file input after success
+        if (data.files && data.files.length > 0) 
+            await pollFilesReady(data.files, statusEl, uploadBtn);
+
     } catch (err) {
         setStatus(statusEl, 'Network error during upload.', 'error');
         uploadBtn.disabled = false;
@@ -144,19 +139,16 @@ async function uploadFiles() {
  * @param {HTMLElement} uploadBtn - Upload button to re-enable
  */
 async function pollFilesReady(filenames, statusEl, uploadBtn) {
-    const maxAttempts = 60; // 60 attempts * 5 seconds = 5 minutes max
+    const maxAttempts = 60;
     let attempts = 0;
     
-    setStatus(statusEl, `Processing ${filenames.length} file(s)...`, '');
-    
-    const checkStatus = async () => {
+    while (attempts < maxAttempts) {
         attempts++;
-        
         try {
             const response = await fetch('/check-files-ready', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ files: filenames })
+                body: JSON.stringify({ files: filenames , 'isVisible': true })
             });
             
             const data = await response.json();
@@ -166,6 +158,9 @@ async function pollFilesReady(filenames, statusEl, uploadBtn) {
                 setStatus(statusEl, `All ${filenames.length} file(s) are ready!`, 'success');
                 uploadBtn.disabled = false;
                 loadFiles();
+
+                // Clear success message after 2 seconds
+                setTimeout(() => setStatus(statusEl, '', ''), 2000);
                 return;
             }
             
@@ -181,19 +176,17 @@ async function pollFilesReady(filenames, statusEl, uploadBtn) {
                 return;
             }
             
-            // Poll again after delay
-            setTimeout(checkStatus, 5000); // Check every 5 seconds
+            // Wait 5 seconds before next iteration
+            // await new Promise(resolve => setTimeout(resolve, 5000));
             
         } catch (error) {
             console.error('Error checking file status:', error);
             setStatus(statusEl, 'Error checking file status. Files may still be processing.', 'error');
             uploadBtn.disabled = false;
             loadFiles();
+            return;
         }
-    };
-    
-    // Start polling after initial delay
-    setTimeout(checkStatus, 3000); // Initial delay of 3 seconds
+    }
 }
 
 /* =============================================
@@ -354,16 +347,11 @@ function displayFileTabs(files) {
 /* =============================================
    Delete File  (/delete-file)
    ============================================= */
-
 /**
  * Sends a DELETE request to remove a file, then refreshes the list.
  * @param {string} filename
  */
 async function deleteFileHandler(filename) {
-    // if (!confirm(`Are you sure you want to delete "${filename}"?`)) {
-    //     return;
-    // }
-
     const statusEl = document.getElementById('uploadStatus');
     // Visually mark the tab as being deleted
     const tabs = document.querySelectorAll('.file-tab');
@@ -372,6 +360,8 @@ async function deleteFileHandler(filename) {
             tab.classList.add('deleting');
         }
     });
+
+    setStatus(statusEl, `Deleting ${filename}...`, '');
 
     try {
         const response = await fetch('/delete-file', {
@@ -382,22 +372,74 @@ async function deleteFileHandler(filename) {
 
         const data = await response.json();
 
-        if (response.ok) {
-            console.log(`Deleted: ${filename}`);
-            setStatus(statusEl, `File deleted successfully: ${filename}`, 'success');
-        } else {
-            setStatus(statusEl, `Error deleting file: ${data.error || 'An unexpected error occurred.'}`, 'error');
+        if (!response.ok) {
+            const msg = data.error || 'Deletion failed. Please try again.';
+            setStatus(statusEl, msg, 'error');
+            // Remove the deleting state if deletion failed
+            tabs.forEach(tab => {
+                if (tab.querySelector('.file-name').textContent === filename) {
+                    tab.classList.remove('deleting');
+                }
+            });
+            return;
         }
+
+        await pollFileDeleted(filename, statusEl);
+
     } catch (error) {
         setStatus(statusEl, `Network error while deleting file: ${error.message}`, 'error');
+        // Remove the deleting state on error
+        tabs.forEach(tab => {
+            if (tab.querySelector('.file-name').textContent === filename) {
+                tab.classList.remove('deleting');
+            }
+        });
     }
+}
 
-    // Refresh the file list after a short delay
-    setTimeout(() => {
-        loadFiles();
-        // Clear success/error message after displaying files
-        setTimeout(() => setStatus(statusEl, '', ''), 3000);
-    }, 500);
+/**
+ * Poll until the file is confirmed deleted (no longer indexed in OpenSearch)
+ * @param {string} filename
+ * @param {HTMLElement} statusEl
+ */
+async function pollFileDeleted(filename, statusEl) {
+    const maxAttempts = 60;
+    let attempts = 0;
+    
+    while (attempts < maxAttempts) {
+        attempts++;
+        
+        try {
+            const response = await fetch('/check-files-ready', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ files: [filename], 'isVisible': false })
+            });
+            
+            const data = await response.json();
+            
+            // Check if the file is no longer indexed (all_ready == false means file not found)
+            if (data.all_ready === false || data.files[filename] === false) {
+                setStatus(statusEl, `File deleted successfully: ${filename}`, 'success');
+                loadFiles();
+                
+                // Clear success message after 2 seconds
+                setTimeout(() => setStatus(statusEl, '', ''), 2000);
+                return;
+            }
+
+            if (attempts >= maxAttempts) {
+                setStatus(statusEl, 'Deletion is taking longer than expected', 'error');
+                loadFiles();
+                return;
+            }
+        } catch (error) {
+            console.error('Error checking file deletion status:', error);
+            setStatus(statusEl, 'Error verifying file deletion', 'error');
+            loadFiles();
+            return;
+        }
+    }
 }
 
 /* =============================================

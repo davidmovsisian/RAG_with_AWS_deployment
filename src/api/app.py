@@ -2,11 +2,10 @@ import os
 from flask import Flask, request, jsonify, send_from_directory
 from dotenv import load_dotenv
 from worker.api_worker import ApiWorker
-# import atexit
-# import signal
+import logging
 
+logger = logging.getLogger(__name__)
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
-
 app = Flask(__name__, static_folder='static', static_url_path='')
 
 # Global worker
@@ -16,19 +15,6 @@ def init_worker():
     if worker is None:
         worker = ApiWorker()
 
-
-# def shutdown_handler(*_args):
-#     global worker
-#     if worker:
-#         worker.stop()  # Implement a stop method in ApiWorker
-#         print("Worker stopped")
-
-
-# Register shutdown handlers
-# atexit.register(shutdown_handler)
-# signal.signal(signal.SIGINT, shutdown_handler)
-# signal.signal(signal.SIGTERM, shutdown_handler)
-
 @app.route('/')
 def index():
     if worker is None:  
@@ -37,22 +23,17 @@ def index():
 
 @app.route("/health", methods=["GET"])
 def health_check():
-    if worker is None:  
-        return jsonify({"error": "Worker not initialized"}), 503
-    status = worker.health_check()
-    http_status = 200 if status["status"] == "healthy" else 503
-    return jsonify(status), http_status
+    return jsonify({"status": "healthy"}), 200
 
-# return list of indexed documents
 @app.route("/list-files", methods=["GET"])
 def list_docs():
     if worker is None:  
         return jsonify({"error": "Worker not initialized"}), 503
     try:
-        files = worker.s3_client.list_files()
+        files = worker.list_files()
         return jsonify({"files": files}), 200
     except Exception as e:
-        print(f"Error listing documents: {e}")
+        logger.error(f"Error listing documents: {e}")
         return jsonify({
             "error": "Error listing documents",
             "details": str(e)
@@ -70,7 +51,7 @@ def ask_question():
     try:
         answer = worker.ask_question(question, top_k)
     except Exception as e:
-        print(f"Error processing question: {e}")
+        logger.error(f"Error processing question: {e}")
         return jsonify({
             "error": "Error processing question",
             "details": str(e)
@@ -91,24 +72,24 @@ def upload_file():
     SUPPORTED_EXTENSIONS = ('.txt', '.pdf')
     uploaded_files = []
 
-    for f in files:
-        if f.filename and f.filename.lower().endswith(SUPPORTED_EXTENSIONS):
-            print(f"Uploading file: {f.filename}")
-            try:
-                worker.s3_client.upload_file(f)
-                uploaded_files.append(f.filename)
-            except Exception as e:
-                print(f"Error uploading file: {e}")
-                return jsonify({
-                    "error": f"An error occurred while uploading the file {f.filename}",
-                    "details": str(e)
-                }), 500
-        else:
-            print(f"Unsupported file type for file: {f.filename}")
-            return jsonify({
-                "error": f"Unsupported file type for file: {f.filename}. Only .txt and .pdf are allowed."}), 400
-    return jsonify({"message": "Files uploaded successfully", "files": uploaded_files}), 200
-
+    bad_files = [f for f in files if not f.filename.lower().endswith(SUPPORTED_EXTENSIONS)]
+    if bad_files:        
+        logger.error(f"Unsupported file type for files: {[f.filename for f in bad_files]}")
+        return jsonify({
+            "error": f"Unsupported file type for files: {[f.filename for f in bad_files]}"}), 400
+    
+    try:
+        worker.upload_files(files)
+        uploaded_files =[f.filename for f in files]
+        logger.info(f"Files uploaded successfully: {uploaded_files}")
+        return jsonify({"message": "Files uploaded successfully", "files": uploaded_files}), 200
+    except Exception as e:
+        logger.error(f"Error during file upload: {e}")
+        return jsonify({
+            "error": "An error occurred during files upload",
+            "details": str(e)
+        }), 500
+    
 @app.route("/delete-file", methods=["DELETE"])
 def delete_file():
     if worker is None:  
@@ -118,16 +99,17 @@ def delete_file():
     if not filename:
         return jsonify({"error": "Filename is required"}), 400
     try:
-        worker.s3_client.delete_file(filename)
+        worker.delete_file(filename)
     except Exception as e:
-        print(f"Error deleting file: {e}")
+        logger.error(f"Error deleting file: {e}")
         return jsonify({
             "error": f"An error occurred while deleting the file {filename}",
             "details": str(e)
         }), 500
+    logger.info(f"File {filename} deleted successfully")
     return jsonify({"message": f"File {filename} deleted successfully"}), 200
 
-# this endpoint is used by the frontend to check if the uploaded files are indexed and ready for search
+# check if the uploaded files are indexed and ready for search
 @app.route("/check-files-ready", methods=["POST"])
 def check_files_ready():
     """Check if files are indexed in OpenSearch."""
@@ -136,17 +118,20 @@ def check_files_ready():
     
     data = request.get_json()
     filenames = data.get("files", [])
+    isVisible = data.get("isVisible", None)
     
     if not filenames:
         return jsonify({"error": "No files provided"}), 400
+    if isVisible is None:
+        return jsonify({"error": "isVisible parameter is required"}), 400
     
     results = {}
     for filename in filenames:
         try:
-            indexed = worker.opensearch_client.check_document_indexed(filename)
+            indexed = worker.check_document_indexed(filename, isVisible=isVisible)
             results[filename] = indexed
         except Exception as e:
-            print(f"Error checking status for {filename}: {e}")
+            logger.error(f"Error checking status for {filename}: {e}")
             results[filename] = False
     
     all_ready = all(results.values())
@@ -162,5 +147,5 @@ init_worker()
 if __name__ == "__main__":
     port = int(os.getenv("FLASK_PORT", "5000"))
     host = os.getenv("FLASK_HOST", "0.0.0.0")
-    print("Running Flask dev server (use Gunicorn in production)")
+    logger.info("Running Flask dev server (use Gunicorn in production)")
     app.run(host=host, port=port, debug=False, use_reloader=False)

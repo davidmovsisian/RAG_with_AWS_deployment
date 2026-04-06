@@ -1,55 +1,75 @@
-import os
-from utils.gemini_client import GeminiClient
 from utils.opensearch_client import OpenSearchClient
 from utils.s3_client import S3Client
+from utils.bedrock_client import BedrockClient
+import logging
+import os
+
+logger = logging.getLogger(__name__)
+def configure_logging() -> None:
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        force=True,
+    )
+
+configure_logging()
 
 class ApiWorker:
     def __init__(self):
-        print("Initializing ApiWorker...")
-        
+        logger.info("Initializing ApiWorker...")
+                
         self.s3_client = S3Client()
-        self.gemini_client = GeminiClient(pool_size=int(os.getenv("GEMINI_POOL_SIZE", "5")))
+        self.bedrock_client = BedrockClient()
         self.opensearch_client = OpenSearchClient()
-        print("ApiWorker initialized successfully")
         
     def ask_question(self, question:str, top_k:int=5) ->dict:
-        question_embedding = self.gemini_client.get_embedding(question, is_query=True)
-        chunks = self.opensearch_client.search(question_embedding, top_k=top_k)
-        if not chunks:
-            return {"error": "No documents indexed. Upload documents first."}
-        context_parts = []         
-        for i, result in enumerate(chunks):
-            context_parts.append(f"[{i+1}] {result['content']}")
-        context = "\n\n".join(context_parts)
-        answer = self.gemini_client.generate_answer(context, question)
-        return {"question": question, "top_k": top_k, "context": chunks, "answer": answer}
+        logger.info(f"Received question: '{question}' with top_k={top_k}")
+        try:
+            question_embedding = self.bedrock_client.get_embedding(question)
+            chunks = self.opensearch_client.search(question_embedding, top_k=top_k)
+            if not chunks:
+                return {"error": "No documents indexed. Upload documents first."}
+            context_parts = []         
+            for i, result in enumerate(chunks):
+                context_parts.append(f"[{i+1}] {result['content']}")
+            context = "\n\n".join(context_parts)
+            answer = self.bedrock_client.generate_answer(context, question)
+            logger.info(f"Generated answer: {answer}")
+            return {"question": question, "top_k": top_k, "context": chunks, "answer": answer}
+        except Exception as e:
+            logger.error(f"Error processing question: {e}")
+            return {"error": str(e)}
         
-    def health_check(self) -> dict:
-        status = {
-            "status": "healthy",
-            "services": {
-                "s3": "unknown",
-                "opensearch": "unknown",
-                "gemini": "unknown",
-            }
-        }
+    def upload_files(self, files):
+        logger.info(f"Uploading {len(files)} files")
         try:
-            self.s3_client.client.list_buckets()
-            status["services"]["s3"] = "healthy"
+            for file in files:
+                self.s3_client.upload_file(file)
         except Exception as e:
-            status["services"]["s3"] = "unhealthy"
-            status["status"] = "degraded"
-        try:
-            self.opensearch_client.client.ping()
-            status["services"]["opensearch"] = "healthy"
-        except Exception as e:
-            status["services"]["opensearch"] = "unhealthy"
-            status["status"] = "degraded"
-        try:
-            self.gemini_client.get_embedding("health check")
-            status["services"]["gemini"] = "healthy"
-        except Exception as e:
-            status["services"]["gemini"] = "unhealthy"
-            status["status"] = "degraded"
+            logger.error(f"Error uploading files: {e}") 
+            raise
         
-        return status
+    def list_files(self):
+        logger.info("Listing files in S3 bucket")
+        try:
+            return self.s3_client.list_files()
+        except Exception as e:
+            logger.error(f"Error listing files: {e}")
+            return []
+    
+    def delete_file(self, filename: str):
+        logger.info(f"Deleting file: {filename}")
+        try:
+            self.s3_client.delete_file(filename)
+        except Exception as e:
+            logger.error(f"Error deleting file: {e}")
+            raise
+
+    def check_document_indexed(self, filename: str, isVisible: bool = True) -> bool:
+        logger.info(f"Checking if document is indexed: {filename}")
+        try:
+            return self.opensearch_client.check_document_indexed(filename, isVisible=isVisible)
+        except Exception as e:
+            logger.error(f"Error checking if document is indexed: {e}")
+            return False

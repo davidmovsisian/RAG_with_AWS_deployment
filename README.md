@@ -19,7 +19,20 @@ A production-ready Retrieval-Augmented Generation (RAG) system deployed on AWS t
 
 ## Architecture Overview
 
-This RAG system follows a microservices architecture with two main workers: **API Worker** and **SQS Worker**, orchestrated through AWS services.
+This RAG system follows a **multi-process architecture** with two standalone services running on a single EC2 instance:
+
+1. **API Worker** (Foreground Service)
+   - Flask-based REST API
+   - Handles user requests (upload, query, file management)
+   - Interacts with: S3, OpenSearch, Bedrock (for query embeddings and LLM)
+
+2. **SQS Worker** (Background Service)
+   - Autonomous document processor
+   - Polls SQS queue for document events
+   - Performs the complete indexing pipeline
+   - Interacts with: SQS, S3, Bedrock (for embeddings), OpenSearch (for indexing)
+
+Both services run concurrently on the same EC2 instance and share access to AWS resources.
 
 ### High-Level Architecture
 
@@ -30,43 +43,54 @@ This RAG system follows a microservices architecture with two main workers: **AP
 └──────┬──────┘
        │ HTTP
        ▼
-┌─────────────────────────────────────────────────┐
-│            EC2 Instance (API Worker)            │
-│  ┌──────────────────────────────────────────┐  │
-│  │  Flask API                                │  │
-│  │  - Upload endpoint                        │  │
-│  │  - Ask endpoint                           │  │
-│  │  - File management                        │  │
-│  │  - Document status checking               │  │
-│  └────┬─────────────────────┬────────────┬───┘  │
-│       │                     │            │      │
-└───────┼─────────────────────┼────────────┼──────┘
-        │                     │            │
-        ▼                     ▼            ▼
-   ┌────────┐          ┌─────────────┐  ┌──────────────┐
-   │   S3   │          │  OpenSearch │  │ Gemini API   │
-   │ Bucket │◄─────┐   │  Collection │  │ (Embedding & │
-   └────┬───┘      │   └─────────────┘  │     LLM)     │
-        │          │                    └──────────────┘
-        │ Event    │
-        ▼          │
-   ┌────────┐     │
-   │  SQS   │     │
-   │ Queue  │     │
-   └────┬───┘     │
-        │         │
-        ▼         │
-┌─────────────────┴───────────────────────────────┐
-│         EC2 Instance (SQS Worker)               │
-│  ┌──────────────────────────────────────────┐  │
-│  │  Document Processor                      │  │
-│  │  - Polls SQS messages                    │  │
-│  │  - Downloads from S3                     │  │
-│  │  - Chunks documents                      │  │
-│  │  - Generates embeddings                  │  │
-│  │  - Indexes to OpenSearch                 ��  │
-│  └──────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                    EC2 Instance                             │
+│                                                             │
+│  ┌────────────────────────────────────────────────────┐   │
+│  │         API Worker (Flask Application)             │   │
+│  │  ┌──────────────────────────────────────────────┐  │   │
+│  │  │  Flask API                                    │  │   │
+│  │  │  - Upload endpoint                            │  │   │
+│  │  │  - Ask endpoint                               │  │   │
+│  │  │  - File management                            │  │   │
+│  │  │  - Document status checking                   │  │   │
+│  │  └────┬─────────────────────┬──────────────┬─────┘  │   │
+│  └───────┼─────────────────────┼──────────────┼────────┘   │
+│          │                     │              │            │
+│          │                     │              │            │
+│  ┌───────┼─────────────────────┼──────────────┼────────┐   │
+│  │       │    SQS Worker       │              │        │   │
+│  │       │  (Background Process)              │        │   │
+│  │  ┌────▼────────────────────────────────────▼─────┐  │   │
+│  │  │  Document Processor                          │  │   │
+│  │  │  - Polls SQS messages                        │  │   │
+│  │  │  - Downloads from S3                         │  │   │
+│  │  │  - Extracts text (PDF/TXT)                   │  │   │
+│  │  │  - Chunks documents                          │  │   │
+│  │  │  - Generates embeddings (Bedrock)            │  │   │
+│  │  │  - Indexes to OpenSearch                     │  │   │
+│  │  └──────┬────────────────────────┬──────────────┘  │   │
+│  └─────────┼────────────────────────┼─────────────────┘   │
+└────────────┼────────────────────────┼─────────────────────┘
+             │                        │
+             ▼                        ▼
+   ┌──────────────────┐    ┌──────────────────┐
+   │   AWS Bedrock    │    │   OpenSearch     │
+   │  - Titan Embed   │    │   Serverless     │
+   │  - Claude 3.5    │    │  (Vector Store)  │
+   └──────────────────┘    └──────────────────┘
+             ▲                        ▲
+             │                        │
+             └────────────────────────┘
+                      Shared Access
+
+        ┌────────┐          ┌────────┐
+        │   S3   │◄─────────│  SQS   │
+        │ Bucket │  Event   │ Queue  │
+        └────┬───┘          └───▲────┘
+             │                  │
+             └──────────────────┘
+              Both Workers Access
 ```
 
 ### Data Flow
@@ -75,19 +99,19 @@ This RAG system follows a microservices architecture with two main workers: **AP
 1. User uploads document (`.txt` or `.pdf`) via web interface
 2. API Worker receives file and uploads to **S3 bucket**
 3. S3 triggers notification → **SQS queue**
-4. SQS Worker polls queue and receives message
-5. Worker downloads file from S3
-6. Document is chunked (500 chars with 50 char overlap)
-7. Each chunk is embedded using **Gemini Embedding API**
-8. Chunks + embeddings are indexed to **OpenSearch**
+4. **SQS Worker polls queue** and receives message
+5. Worker **downloads file from S3**
+6. Document is **chunked** (500 chars with 50 char overlap)
+7. **SQS Worker generates embeddings** for each chunk using **AWS Bedrock Titan**
+8. **SQS Worker indexes** chunks + embeddings to **OpenSearch**
 9. Frontend polls until document is fully indexed
 
 #### Query Flow:
 1. User submits question via web interface
-2. API Worker generates question embedding using **Gemini API**
-3. OpenSearch performs KNN vector similarity search
+2. **API Worker generates question embedding** using **AWS Bedrock Titan**
+3. **API Worker queries OpenSearch** to perform KNN vector similarity search
 4. Top-k most relevant chunks are retrieved
-5. Context + question sent to **Gemini LLM**
+5. Context + question sent to **AWS Bedrock Claude 3.5 Haiku**
 6. AI-generated answer returned to user with source citations
 
 ---
@@ -95,11 +119,13 @@ This RAG system follows a microservices architecture with two main workers: **AP
 ## 🔧 System Components
 
 ### 1. API Worker (`src/api/`)
-Flask-based REST API that handles:
+**Flask-based REST API** (runs as foreground service on EC2)
+
+Handles:
 - Document upload to S3
-- Question answering with RAG
+- Question answering with RAG using **AWS Bedrock**
 - File listing and management
-- Document status checking
+- Document status checking via OpenSearch
 - Health monitoring
 
 **Key Files:**
@@ -107,24 +133,38 @@ Flask-based REST API that handles:
 - `api_worker.py` - Business logic for Q&A
 - `static/` - Frontend HTML/CSS/JS
 
+**AWS Services Used:**
+- S3 (upload, list, delete)
+- OpenSearch (search queries)
+- Bedrock (query embeddings, LLM responses)
+
 ### 2. SQS Worker (`src/sqs_worker_main.py`)
-Background processor that:
-- Polls SQS queue for document events
-- Extracts text from PDF/TXT files
-- Chunks documents into manageable pieces
-- Generates embeddings via Gemini API
-- Indexes to OpenSearch with metadata
+**Background document processor** (runs as background service on EC2)
+
+Operates autonomously to:
+- Poll SQS queue for S3 event notifications
+- Download documents from S3
+- Extract text from PDF/TXT files (with AWS Textract for multi-page PDFs)
+- Chunk documents into manageable pieces
+- Generate embeddings via **AWS Bedrock Titan**
+- Index chunks + embeddings + metadata to OpenSearch
 
 **Key Files:**
 - `sqs_worker.py` - Message polling and processing
-- `document_processor.py` - Chunking and indexing logic
+
+**AWS Services Used:**
+- SQS (receive messages, delete messages)
+- S3 (download files)
+- Bedrock (generate embeddings)
+- OpenSearch (index documents)
+- Textract (optional, for complex PDFs)
 
 ### 3. Utility Modules (`src/utils/`)
 - `s3_client.py` - S3 operations (upload, download, list, delete)
 - `opensearch_client.py` - OpenSearch indexing and search
-- `gemini_client.py` - Gemini API for embeddings and LLM
+- `bedrock_client.py` - AWS Bedrock client for embeddings and LLM inference
 - `chunking.py` - Text chunking with overlap
-- `pdf_extractor.py` - PDF text extraction
+
 
 ### 4. Infrastructure Scripts (`infrastructure/`)
 Automated AWS resource provisioning:
@@ -132,7 +172,7 @@ Automated AWS resource provisioning:
 2. `2_create_sqs_queue.py` - SQS queue with S3 permissions
 3. `3_setup_s3_event.py` - S3 event notifications to SQS
 4. `4_create_iam_role.py` - EC2 IAM role with permissions
-5. `5_setup_opensearch.py` - OpenSearch collection 
+5. `5_setup_opensearch.py` - OpenSearch serverless collection 
 6. `6_launch_ec2.py` - EC2 instance with setup scripts
 
 ---
@@ -142,33 +182,26 @@ Automated AWS resource provisioning:
 | Component | Technology |
 |-----------|-----------|
 | **Frontend** | HTML, CSS, Vanilla JavaScript |
-| **Backend API** | Python Flask |
+| **Backend API** | Python Flask/Gunicorn |
 | **Background Worker** | Python (SQS polling) |
 | **Vector Database** | AWS OpenSearch Serverless (VECTORSEARCH) |
 | **Storage** | AWS S3 |
 | **Message Queue** | AWS SQS |
 | **Compute** | AWS EC2 (t3.small) |
-| **Embeddings** | Google Gemini Embedding API (768d) |
-| **LLM** | Google Gemini 2.5 Flash |
+| **Embeddings** | AWS Bedrock - Titan Embeddings (amazon.titan-embed-text-v1, 1536d) |
+| **LLM** | AWS Bedrock - Claude 3.5 Haiku (us.anthropic.claude-3-5-haiku-20241022-v1:0) |
 | **PDF Processing** | PyPDF2 |
 
 ---
 
 ## 📦 Prerequisites
-
-### Local Development
-- Python 3.9+
-- AWS Account with appropriate permissions
-- Google Gemini API Key ([Get one here](https://ai.google.dev/))
-
 ### AWS Permissions Required
-- S3 (full access)
+`- S3 (full access)
 - SQS (full access)
 - OpenSearch (full access)
 - EC2 (full access)
 - IAM (role creation)
-
----
+- Bedrock (model invocation)
 
 ## 🚀 Installation & Setup
 
@@ -205,12 +238,12 @@ SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/ACCOUNT_ID/rag-class-docs-queu
 OPENSEARCH_ENDPOINT=https://your-opensearch-domain.us-east-1.es.amazonaws.com
 OPENSEARCH_INDEX_NAME=rag-documents
 
-# Gemini API Configuration
-GEMINI_API_KEY=your-gemini-api-key
-GEMINI_EMBEDDING_MODEL=models/embedding-001
-GEMINI_LLM_MODEL=gemini-2.0-flash-exp
-EMBEDDING_DIMENSION=768
-GEMINI_POOL_SIZE=5
+# AWS Bedrock Configuration
+EMBEDDING_MODEL=amazon.titan-embed-text-v1
+LLM_MODEL=us.anthropic.claude-3-5-haiku-20241022-v1:0
+EMBEDDING_DIMENSION=1536
+MAX_TOKENS=1000
+TEMPERATURE=0.7
 
 # Flask Configuration
 FLASK_HOST=0.0.0.0
@@ -248,7 +281,9 @@ python setup.py status
 
 ### Option 1: Local Development
 
-#### Terminal 1 - Start API Worker
+**Both services must run concurrently in separate terminals**
+
+#### Terminal 1 - Start API Worker (Foreground Service)
 
 ```bash
 cd src
@@ -257,29 +292,37 @@ python -m api.app
 
 Access at: `http://localhost:5000`
 
-#### Terminal 2 - Start SQS Worker
+#### Terminal 2 - Start SQS Worker (Background Service)
 
 ```bash
 cd src
 python sqs_worker_main.py
 ```
 
+**Note:** Both services must be running for the system to function. API Worker handles user requests, while SQS Worker processes documents in the background.
+
 ### Option 2: AWS Deployment
 
-The application automatically starts on EC2 instances using systemd services:
+On EC2, both services run as **systemd services** that start automatically:
 
 ```bash
 # SSH to EC2 instance
 ssh -i your-key.pem ec2-user@your-ec2-ip
 
-# Check service status
+# Check both services are running
 sudo systemctl status api-worker
 sudo systemctl status sqs-worker
 
-# View logs
-sudo journalctl -u api-worker -f
-sudo journalctl -u sqs-worker -f
+# View real-time logs
+sudo journalctl -u api-worker -f    # API Worker logs
+sudo journalctl -u sqs-worker -f    # SQS Worker logs
+
+# Restart services if needed
+sudo systemctl restart api-worker
+sudo systemctl restart sqs-worker
 ```
+
+Both services run concurrently on the same EC2 instance.
 
 ---
 
@@ -344,14 +387,43 @@ python setup.py cleanup --env ../.env
 | `S3_BUCKET` | S3 bucket name | `{PROJECT_NAME}-docs-{TEAM_NAME}` |
 | `SQS_QUEUE_URL` | Full SQS queue URL | Auto-generated |
 | `OPENSEARCH_ENDPOINT` | OpenSearch collection endpoint | Auto-generated |
-| `GEMINI_API_KEY` | Google Gemini API key | Required |
-| `EMBEDDING_DIMENSION` | Embedding vector dimension | `768` |
-| `GEMINI_POOL_SIZE` | Connection pool size | `5` |
+| `EMBEDDING_MODEL` | AWS Bedrock embedding model ID | `amazon.titan-embed-text-v1` |
+| `LLM_MODEL` | AWS Bedrock LLM model ID | `us.anthropic.claude-3-5-haiku-20241022-v1:0` |
+| `EMBEDDING_DIMENSION` | Embedding vector dimension | `1536` |
+| `MAX_TOKENS` | Maximum tokens for LLM response | `1000` |
+| `TEMPERATURE` | LLM response temperature | `0.7` |
 | `WORKER_POLL_INTERVAL` | SQS polling interval (seconds) | `5` |
 
 ---
 
 ## 🐛 Troubleshooting
+
+### Bedrock Access Issues
+
+**Symptom:** Errors like "Access Denied" or "Model not found" when processing documents or queries
+
+**Solution:**
+
+```bash
+# 1. Check Bedrock model access in your AWS account
+aws bedrock list-foundation-models --region us-east-1 \
+  --query 'modelSummaries[?contains(modelId, `titan-embed`) || contains(modelId, `claude`)].[modelId,modelLifecycle.status]' \
+  --output table
+
+# 2. Verify IAM role has Bedrock permissions
+aws iam get-role-policy \
+  --role-name rag-class-ec2-role-your-team-name \
+  --policy-name rag-class-ec2-policy-your-team-name
+
+# 3. Test Bedrock access from EC2
+aws bedrock invoke-model \
+  --model-id amazon.titan-embed-text-v1 \
+  --body '{"inputText":"test"}' \
+  --cli-binary-format raw-in-base64-out \
+  output.json
+```
+
+**Note:** You must request model access through AWS Bedrock console before using models. This is a one-time setup per AWS account.
 
 ### OpenSearch Connection Issues
 
@@ -412,7 +484,7 @@ RAG_with_AWS_deployment/
 │   ├── utils/
 │   │   ├── s3_client.py
 │   │   ├── opensearch_client.py
-│   │   ├── gemini_client.py
+│   │   ├── bedrock_client.py
 │   │   ├── chunking.py
 │   │   └── pdf_extractor.py
 │   └── sqs_worker_main.py         # SQS worker entry point
@@ -420,7 +492,7 @@ RAG_with_AWS_deployment/
 │   ├── setup.py                   # Infrastructure orchestrator
 │   └── scripts/
 │       ├── 1_create_s3_bucket.py
-│       ���── 2_create_sqs_queue.py
+│       ├── 2_create_sqs_queue.py
 │       ├── 3_setup_s3_event.py
 │       ├── 4_create_iam_role.py
 │       ├── 5_setup_opensearch.py
@@ -428,3 +500,4 @@ RAG_with_AWS_deployment/
 ├── requirements.txt
 ├── .env
 └── README.md
+```

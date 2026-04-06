@@ -1,47 +1,59 @@
 import os
+import time
 from typing import Any, Dict, List
 import boto3
-from opensearchpy import OpenSearch, RequestsHttpConnection
-from requests_aws4auth import AWS4Auth
+from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth
+from opensearchpy.helpers import bulk
+from utils.bedrock_client import BedrockClient
+import logging
 
+logger = logging.getLogger(__name__)
 
 class OpenSearchClient:
     def __init__(self):
         endpoint = os.getenv("OPENSEARCH_ENDPOINT", "")
         self.index_name = os.getenv("OPENSEARCH_INDEX_NAME", "rag-documents")
-        # Parse host and port from endpoint
-        host = endpoint.replace("https://", "").replace("http://", "")
-        # use_ssl = endpoint.startswith("https://")
-
+        host = endpoint.replace("https://", "").replace("http://", "").split(':')[0]
         region = os.getenv("AWS_REGION", "us-east-1")
+        service = "aoss"  # "aoss" for OpenSearch Serverless, "es" for managed domains
         credentials = boto3.Session().get_credentials()
-        aws_auth = AWS4Auth(
-            credentials.access_key,
-            credentials.secret_key,
-            region,
-            "aoss", # Use "aoss" for OpenSearch Serverless, "es" for managed domains
-            session_token=credentials.token,
-        )
+        aws_auth = AWSV4SignerAuth(credentials, region, service)
         self.client = OpenSearch(
             hosts=[{"host": host, "port": 443}],
             http_auth=aws_auth,
             use_ssl=True,
             verify_certs=True,
             connection_class=RequestsHttpConnection,
+            timeout=60,
+            max_retries=3,
+            retry_on_timeout=True,
         )
-        print("OpenSearchClient initialized with AWS IAM auth")
+        logger.info("OpenSearchClient initialized")
 
-    def create_index(self, dimension: int = None) -> bool:
+    def _knn_mapping_exists(self) -> bool:
+        """Check if the index has a proper knn_vector mapping for 'embedding'."""
+        try:
+            mapping = self.client.indices.get_mapping(index=self.index_name)
+            props = mapping[self.index_name]["mappings"].get("properties", {})
+            return props.get("embedding", {}).get("type") == "knn_vector"
+        except Exception:
+            return False
+
+    def create_index(self):
         """Create a KNN-enabled index with HNSW algorithm."""
-        if dimension is None:
-            dimension = int(os.getenv("EMBEDDING_DIMENSION", "768"))
+        logger.info(f"Creating OpenSearch index: {self.index_name}")
+        dimension = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
         try:
             if self.client.indices.exists(index=self.index_name):
-                print(f"Index '{self.index_name}' already exists")
-                return True
-
+                if self._knn_mapping_exists():
+                    logger.info(f"Index '{self.index_name}' already exists with correct mapping")
+                    return True
+                logger.info(f"Index '{self.index_name}' exists but has wrong mapping — recreating")
+                self.client.indices.delete(index=self.index_name)
             index_body = {
-                "settings": {"index": {"knn": True, "knn.algo_param.ef_search": 512}},
+                "settings": {
+                    "index": {"knn": True}
+                },
                 "mappings": {
                     "properties": {
                         "content": {"type": "text"},
@@ -51,7 +63,7 @@ class OpenSearchClient:
                             "method": {
                                 "name": "hnsw",
                                 "space_type": "l2",
-                                "engine": "nmslib",
+                                "engine": "faiss",
                                 "parameters": {"ef_construction": 512, "m": 16},
                             },
                         },
@@ -59,34 +71,52 @@ class OpenSearchClient:
                             "properties": {
                                 "filename": {"type": "keyword"},
                                 "chunk_id": {"type": "integer"},
-                                "total_chunks": {"type": "integer"},
+                                "total_chunks": {"type": "integer"}
                             }
                         },
                     }
                 },
             }
             self.client.indices.create(index=self.index_name, body=index_body)
-            print(f"Index '{self.index_name}' created successfully")
-            return True
         except Exception as e:
-            print(f"Error creating index: {e}")
-            return False
+            logger.error(f"Error creating index: {e}")
+            raise
 
-    def index_document(self, content: str, embedding: List[float], metadata: Dict[str, Any]) -> str:
-        """Index a document chunk with its embedding vector and metadata dict with filename, chunk_id, total_chunks."""
-        document = {
-            "content": content,
-            "embedding": embedding,
-            "metadata": metadata,
-        }
-        response = self.client.index(index=self.index_name, body=document)
-        doc_id = response["_id"]
-        print(f"Indexed document with id={doc_id}")
-        return doc_id
-
+    # bulk indexing the cnunks
+    def index_document(self, chunks:list, filename: str):
+        logger.info(f"Indexing document '{filename}' with {len(chunks)} chunks")
+        actions = []
+        total_chunks = len(chunks)
+        bedrock_client = BedrockClient()
+        try:
+            for chunk_id, chunk in enumerate(chunks):
+                embedding = bedrock_client.get_embedding(chunk)
+                action = {
+                    "_op_type": "index",  # or "create" if you want it to fail if ID exists
+                    "_index": self.index_name,
+                    "_source": {
+                        "content": chunk,
+                        "embedding": embedding,
+                        "metadata": {
+                            "filename": filename,
+                            "chunk_id": chunk_id,
+                            "total_chunks": total_chunks,
+                        }
+                    }
+                }
+                actions.append(action)
+            success_count, errors = bulk(self.client, actions)
+            if errors:
+                logger.error(f"Errors occurred during bulk index: {errors}")
+                raise Exception(f"Errors occurred during bulk index: {errors}")
+            logger.info(f"Successfully indexed {success_count}/{total_chunks} chunks for {filename}")
+        except Exception as e:  
+            logger.error(f"Error preparing bulk index actions: {e}")
+            raise
 
     def search(self, query_embedding: List[float], top_k: int = 5) -> List[Dict[str, Any]]:
         """Perform KNN vector similarity search."""
+        logger.info(f"Performing search with top_k={top_k}")
         try:
             query = {
                 "size": top_k,
@@ -107,53 +137,79 @@ class OpenSearchClient:
                         "metadata": hit["_source"].get("metadata", {}),
                     }
                 )
-            print(f"Search returned {len(results)} results")
+            logger.info(f"Search returned {len(results)} results")
             return results
         except Exception as e:
-            print(f"Error performing search: {e}")
+            logger.error(f"Error performing search: {e}")
             raise
 
-    def search_by_metadata(self, field: str, value: str, size: int = 100) -> List[Dict[str, Any]]:
-        """Search documents by metadata field (e.g., filename)."""
-        try:
-            query = {
-                "size": size,
+    # isVisible is used to check if the document is indexed or not
+    # if isVisible is True, it will check if the document is indexed, 
+    # if isVisible is False, it will check if the document is deleted
+    def check_document_indexed(self, filename: str, retries: int = 10, delay: float = 3.0, isVisible: bool = True) -> bool:
+        """Check if a document is indexed, retrying to account for OpenSearch propagation delay."""
+        logger.info(f"Checking if document '{filename}' is indexed in OpenSearch")
+        query = {
                 "query": {
-                    "match": {
-                        f"metadata.{field}": value
+                    "term": {
+                        "metadata.filename": filename
                     }
                 }
             }
-            response = self.client.search(index=self.index_name, body=query)
-            results = []
-            for hit in response["hits"]["hits"]:
-                results.append({
-                    "_id": hit["_id"],
-                    "score": hit["_score"],
-                    "content": hit["_source"].get("content", ""),
-                    "metadata": hit["_source"].get("metadata", {}),
-                })
-            print(f"Found {len(results)} documents matching {field}={value}")
-            return results
-        except Exception as e:
-            print(f"Error searching by metadata: {e}")
-            return []
+        for attempt in range(1, retries + 1):
+            try:
+                response = self.client.search(index=self.index_name, body=query)
+                hits = response.get("hits", {}).get("hits", [])
+                if hits:
+                    logger.info(f"Document '{filename}' is visible, retrying ({attempt}/{retries})...")
+                    if isVisible:
+                        return True
+                else:
+                    logger.info(f"Document '{filename}' not visible, retrying ({attempt}/{retries})...")
+                    if not isVisible:
+                        return True
+            except Exception as e:
+                logger.error(f"Error checking document status: {e}")
+            time.sleep(delay)
+        return False
     
-    def check_document_indexed(self, filename: str) -> bool:
-        """Check if a document is fully indexed in OpenSearch by checking if any chunks exist."""
+    # bulk delete document by filename
+    def delete_document(self, filename: str) -> bool:
+        """Delete all documents with the given filename from the index."""
+        logger.info(f"Processing removal of document: {filename}")
         try:
-            results = self.search_by_metadata(field="filename", value=filename, size=1)
-            return len(results) > 0
+            query = {
+                "query": {
+                    "term": { "metadata.filename": filename }
+                },
+                "_source": False  # We only need the IDs, not the content
+            }
+            
+            search_response = self.client.search(index=self.index_name, body=query)
+            hits = search_response.get("hits", {}).get("hits", [])
+            
+            if not hits:
+                logger.info(f"No documents found for {filename}")
+                return False
+
+            # Prepare bulk delete actions
+            actions = [
+                {
+                    "_op_type": "delete",
+                    "_index": self.index_name,
+                    "_id": hit["_id"]
+                }
+                for hit in hits
+            ]
+
+            # Execute bulk deletion
+            success_count, errors = bulk(self.client, actions)  
+            if errors:
+                logger.error(f"Errors occurred during deletion: {errors}")
+
+            logger.info(f"Successfully deleted {success_count} chunks for {filename}")
+            return success_count > 0
+
         except Exception as e:
-            print(f"Error checking document status: {e}")
-            return False
-        
-    def delete_document(self, doc_id: str) -> bool:
-        """Delete a document by ID from the index."""
-        try:
-            self.client.delete(index=self.index_name, id=doc_id)
-            print(f"Deleted document with id={doc_id}")
-            return True
-        except Exception as e:
-            print(f"Error deleting document {doc_id}: {e}")
+            logger.error(f"Error deleting document '{filename}': {e}")
             return False
